@@ -3,7 +3,9 @@ ortools>=9.10
 
 # Scientific Python
 numpy>=1.26
-pandas>=2.1
+# Pin pandas to 2.2.x: pandas 3.x hard-requires pyarrow, whose bundled abseil
+# collides with OR-Tools' abseil at runtime on macOS and deadlocks CP-SAT.
+pandas>=2.1,<2.3
 pydantic>=2.6
 
 # Visualization

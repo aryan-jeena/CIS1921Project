@@ -34,7 +34,7 @@ returns ``INFEASIBLE`` with a reason string instead of crashing.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable
 
 from ortools.sat.python import cp_model
@@ -77,7 +77,7 @@ class Stage2Scheduler:
     """CP-SAT scheduler that consumes stage-1 meal buckets and workout
     templates and produces a fully-placed weekly plan."""
 
-    weights: ScoringWeights = DEFAULT_WEIGHTS
+    weights: ScoringWeights = field(default_factory=lambda: DEFAULT_WEIGHTS)
     time_limit_s: int = 20
     log_search: bool = False
 
