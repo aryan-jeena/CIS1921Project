@@ -97,6 +97,9 @@ def generate_user(
       - ``tight_class_schedule``  narrow availability windows
       - ``early_morning_lifter``  all workouts before 09:00
       - ``recovery_constrained``  long min recovery gap
+      - ``pantry_dining_hall``    realistic Penn-dining pantry restriction
+      - ``mixed_split``           larger workout pool, push/pull/legs preference
+      - ``high_volume_athlete``   8+ sessions/week, large search space
       - ``impossible_case``       intentionally infeasible
     """
     params = params or InstanceParams()
@@ -204,6 +207,63 @@ def generate_user(
         profile.workout_count_max = 4
         return profile
 
+    if scenario == "pantry_dining_hall":
+        # Realistic "what does this Penn student have access to this week" lens.
+        # The pantry list is filled in by the caller (``apply_pantry``) because
+        # it depends on the loaded food catalog. Here we just configure the
+        # *constraints* that make pantry mode interesting: tighter macro fit,
+        # de-emphasised cost, slightly smaller meal count.
+        profile.goal = Goal.MAINTENANCE
+        profile.calorie_target = 2400
+        profile.calorie_tolerance = 120
+        profile.protein_min_g = 130
+        profile.protein_target_g = 160
+        profile.weekly_budget_cents = 14_000      # generous; not the binding term
+        profile.max_meals_per_day = 3
+        profile.enforce_pantry = True             # caller fills pantry_food_ids
+        profile.preferences.preferred_split = PreferredSplit.UPPER_LOWER
+        return profile
+
+    if scenario == "mixed_split":
+        # Larger workout pool with preference signals -- exercises the
+        # preferred-split objective term and produces less-uniform schedules.
+        profile.goal = Goal.PERFORMANCE
+        profile.calorie_target = 2700
+        profile.calorie_tolerance = 150
+        profile.protein_min_g = 150
+        profile.protein_target_g = 180
+        profile.workout_count_min = 5
+        profile.workout_count_max = 6
+        profile.preferences.preferred_split = PreferredSplit.PUSH_PULL_LEGS
+        profile.preferences.preferred_workout_days = [0, 1, 3, 4, 5]
+        profile.preferences.avoid_workout_days = [6]
+        return profile
+
+    if scenario == "high_volume_athlete":
+        # Pushes solver: high workout count, tight protein, dense availability.
+        profile.goal = Goal.PERFORMANCE
+        profile.calorie_target = 3200
+        profile.calorie_tolerance = 200
+        profile.protein_min_g = 180
+        profile.protein_target_g = 220
+        profile.carb_target_g = 400
+        profile.fat_target_g = 95
+        profile.weekly_budget_cents = 22_000
+        profile.workout_count_min = 7
+        profile.workout_count_max = 9
+        profile.max_meals_per_day = 4
+        profile.min_protein_per_meal_g = 35
+        # Full daytime availability so the solver actually has to schedule
+        # 7+ sessions in a meaningful way.
+        wins: list[TimeWindow] = []
+        for d in range(DAYS_PER_WEEK):
+            wins.append(_contiguous_window(d, 12, 8))    # 06:00-10:00
+            wins.append(_contiguous_window(d, 22, 10))   # 11:00-16:00
+            wins.append(_contiguous_window(d, 34, 8))    # 17:00-21:00
+        profile.available_windows = wins
+        profile.preferences.preferred_split = PreferredSplit.PUSH_PULL_LEGS
+        return profile
+
     if scenario == "impossible_case":
         # Impossible macro combination + no budget + no availability.
         profile.calorie_target = 1800
@@ -235,9 +295,84 @@ def generate_scenario_suite(
         "tight_class_schedule",
         "early_morning_lifter",
         "recovery_constrained",
+        "mixed_split",
+        "high_volume_athlete",
+        "pantry_dining_hall",
         "impossible_case",
     ]
     return [
         generate_user(s, InstanceParams(seed=seed + i))
         for i, s in enumerate(scenarios)
     ]
+
+
+def apply_pantry_to_user(
+    user: UserProfile,
+    foods: list,
+    *,
+    pantry_size: int = 18,
+    seed: int | None = None,
+) -> UserProfile:
+    """Pin a realistic pantry/dining-hall subset onto an existing profile.
+
+    Useful for instances flagged with ``enforce_pantry=True``: we keep the
+    profile's macro-/budget-/availability constraints intact and just sample
+    a varied subset of foods that satisfies the dietary exclusions and covers
+    breakfast/lunch/dinner. The selection is deterministic given ``seed``.
+
+    The function returns a *copy* of the profile with ``pantry_food_ids`` set;
+    no in-place mutation. Callers that want to disable pantry mode can simply
+    not call this helper.
+    """
+    rng = random.Random(seed if seed is not None else hash(user.name) & 0xFFFF)
+    eligible = [f for f in foods if f.allowed_for(user.dietary_exclusions)]
+    # Sort foods by protein density so the seed always picks high-utility items
+    # first, then add randomised lower-tier items for variety.
+    eligible.sort(key=lambda f: (-f.protein_g, f.cost_cents))
+    head = eligible[: max(8, pantry_size // 2)]
+    tail = eligible[max(8, pantry_size // 2):]
+    rng.shuffle(tail)
+    chosen = head + tail[: max(0, pantry_size - len(head))]
+    pantry_ids = [f.id for f in chosen[:pantry_size]]
+    return user.model_copy(update={"pantry_food_ids": pantry_ids,
+                                   "enforce_pantry": True})
+
+
+# ---------------------------------------------------------------------------
+# Continuous-scaling generator (per check-in feedback)
+# ---------------------------------------------------------------------------
+def generate_scaling_instances(
+    sizes: list[int] | None = None,
+    *,
+    seed: int = DEFAULT_SEED,
+) -> list[tuple[UserProfile, int]]:
+    """Yield (user, n_foods_target) pairs for the scaling study.
+
+    The check-in feedback noted the original scaling study used coarse fixed
+    sizes (8/16/24/...) that all solved in well under a second. We replace it
+    with a denser sweep (10..200 foods, 3..15 workouts) that stresses the
+    joint solver. Each user has slightly perturbed targets so the runs are
+    not duplicates.
+
+    Returns a list of (UserProfile, target_food_count) tuples; the caller is
+    responsible for trimming the actual catalog to ``target_food_count``
+    items before solving.
+    """
+    if sizes is None:
+        sizes = [10, 20, 30, 40, 60, 80, 100, 130, 160, 200]
+    out: list[tuple[UserProfile, int]] = []
+    for i, n in enumerate(sizes):
+        user = generate_user(
+            "high_volume_athlete" if n >= 100 else "balanced",
+            InstanceParams(
+                seed=seed + i,
+                n_foods=n,
+                n_workout_templates=min(15, max(3, n // 8)),
+                availability_density=0.55,
+                constraint_tightness=0.4,
+            ),
+        )
+        # Mark user.name with the size so the runner can identify it cheaply.
+        user.name = f"scale_{n:03d}_{seed + i}"
+        out.append((user, n))
+    return out

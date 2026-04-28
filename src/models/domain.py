@@ -138,15 +138,20 @@ class RecoveryRule(BaseModel):
 
 
 class HydrationRule(BaseModel):
-    """Hydration reminders placed as 15-minute events.
+    """Hydration reminders placed as single-slot events.
 
-    We model each reminder as a single-slot block at a non-activity time.
-    ``target_reminders_per_day`` is used to compute a penalty if the solver
-    cannot fit them all in.
+    The joint CP-SAT solver schedules these as integer events on the time
+    grid with a min-spacing constraint between consecutive reminders on the
+    same day. Missed reminders accrue a soft penalty rather than infeasibility.
+    ``enabled`` lets the user turn the feature off entirely without editing
+    presets, which is helpful when comparing solver variants.
     """
 
-    target_reminders_per_day: int = Field(ge=0, default=8)
-    min_spacing_slots: int = Field(ge=1, default=3)        # 1.5h apart
+    enabled: bool = True
+    target_reminders_per_day: int = Field(ge=0, default=6)
+    min_spacing_slots: int = Field(ge=1, default=4)        # 2h apart at 30-min slots
+    earliest_slot: int = Field(ge=0, le=SLOTS_PER_DAY, default=14)   # 07:00
+    latest_slot: int = Field(ge=0, le=SLOTS_PER_DAY, default=42)     # 21:00
 
 
 class UserPreferences(BaseModel):
@@ -192,6 +197,16 @@ class UserProfile(BaseModel):
     # Dietary -----------------------------------------------------------------
     dietary_exclusions: list[DietaryTag] = Field(default_factory=list)
 
+    # Pantry / dining-hall access --------------------------------------------
+    # When ``pantry_food_ids`` is non-empty the solver may only choose from
+    # those food ids. This is the "what does the user actually have access to
+    # this week" lens recommended in check-in feedback: planning around food
+    # the user can't buy or cook is unrealistic, and once we restrict to a
+    # known pantry the cost objective becomes secondary (you've already paid
+    # for the dining-hall swipe / what's in the fridge).
+    pantry_food_ids: list[str] = Field(default_factory=list)
+    enforce_pantry: bool = False
+
     # Availability ------------------------------------------------------------
     available_windows: list[TimeWindow] = Field(default_factory=list)
 
@@ -221,6 +236,19 @@ class UserProfile(BaseModel):
             for s in range(w.start_slot, w.end_slot):
                 mask[w.day][s] = True
         return mask
+
+    def filter_pantry(self, foods: list["FoodItem"]) -> list["FoodItem"]:
+        """Restrict ``foods`` to the user's pantry/dining-hall access list.
+
+        Returns ``foods`` unchanged when ``enforce_pantry`` is False or the id
+        list is empty. Otherwise returns only the items the user has access to,
+        preserving original order. Used by every solver before any modeling
+        work so the formulations stay comparable.
+        """
+        if not self.enforce_pantry or not self.pantry_food_ids:
+            return list(foods)
+        wanted = set(self.pantry_food_ids)
+        return [f for f in foods if f.id in wanted]
 
 
 # ---------------------------------------------------------------------------

@@ -90,7 +90,7 @@ class Stage2Scheduler:
         workouts: Iterable[WorkoutTemplate],
     ) -> SolverResult:
         meal_buckets = list(meal_buckets)
-        foods = list(foods)
+        foods = user.filter_pantry(list(foods))
         workouts = list(workouts)
         food_by_id = {f.id: f for f in foods}
 

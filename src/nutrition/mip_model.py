@@ -167,8 +167,29 @@ class NutritionMIP:
 
         # Apply dietary exclusions upfront (idempotent if already filtered).
         foods = [f for f in foods if f.allowed_for(user.dietary_exclusions)]
+        # Restrict to pantry / dining-hall access, if configured.
+        foods = user.filter_pantry(foods)
+        if not foods:
+            return NutritionSolution(
+                status="INFEASIBLE",
+                servings_per_day=[{} for _ in range(DAYS_PER_WEEK)],
+                daily_calories=[0] * DAYS_PER_WEEK,
+                daily_protein_g=[0] * DAYS_PER_WEEK,
+                daily_carbs_g=[0] * DAYS_PER_WEEK,
+                daily_fat_g=[0] * DAYS_PER_WEEK,
+                total_cost_cents=0,
+                objective_value=None,
+            )
 
         model = cp_model.CpModel()
+        # The pantry shift (per check-in feedback) means that when the user
+        # restricts the food set we should not also lean hard on cost as the
+        # dominant tie-breaker -- those foods are already "bought". We damp the
+        # cost weight in pantry mode so macro fit dominates the objective.
+        if user.enforce_pantry and user.pantry_food_ids:
+            self._effective_cost_weight = 0
+        else:
+            self._effective_cost_weight = self.weights.cost_weight
         n_foods = len(foods)
         # x[d][i] = servings of foods[i] on day d
         x: list[list[cp_model.IntVar]] = []
@@ -247,7 +268,7 @@ class NutritionMIP:
             w.protein_deviation * sum(protein_gap_vars)
             + w.macro_deviation * sum(carb_dev_vars)
             + w.macro_deviation * sum(fat_dev_vars)
-            + w.cost_weight * total_cost_expr
+            + self._effective_cost_weight * total_cost_expr
             - 1 * convenience_expr
         )
 

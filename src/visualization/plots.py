@@ -40,25 +40,34 @@ def plot_runtime_vs_size(df: pd.DataFrame, path: Path | None = None) -> Path:
     """Line plot: runtime vs instance size (``n_foods`` preferred).
 
     Expects columns ``solver``, ``runtime_s``, and either ``n_foods`` or a
-    numeric ``instance_size`` column. Falls back to row index if neither is
-    present.
+    numeric ``instance_size`` column. Falls back to a labelled instance index
+    if neither is present (the previous bare "row" label was flagged in
+    check-in feedback).
     """
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(8, 4.5))
     x_col = "n_foods" if "n_foods" in df.columns else (
         "instance_size" if "instance_size" in df.columns else None
     )
+    x_label_lookup = {
+        "n_foods": "n_foods (catalog size)",
+        "instance_size": "instance size",
+    }
     if x_col is None:
         df = df.copy()
-        df["row"] = range(len(df))
-        x_col = "row"
+        df["instance_index"] = range(len(df))
+        x_col = "instance_index"
+        x_label = "instance index"
+    else:
+        x_label = x_label_lookup.get(x_col, x_col)
     for solver, sub in df.groupby("solver"):
         sub_sorted = sub.sort_values(x_col)
         ax.plot(sub_sorted[x_col], sub_sorted["runtime_s"],
                 marker="o", label=solver)
-    ax.set_xlabel(x_col)
+    ax.set_xlabel(x_label)
     ax.set_ylabel("runtime (s)")
     ax.set_title("Solver runtime vs. problem size")
-    ax.legend()
+    ax.grid(True, linestyle=":", alpha=0.5)
+    ax.legend(title="solver")
     out = _fig_path("runtime_vs_size", path)
     fig.savefig(out, dpi=150)
     _close(fig)

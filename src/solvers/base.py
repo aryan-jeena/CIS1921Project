@@ -43,6 +43,12 @@ class BaseSolver(ABC):
         user: UserProfile,
         foods: Iterable[FoodItem],
         workouts: Iterable[WorkoutTemplate],
+        **kwargs,
     ) -> SolverResult:
-        """Produce a :class:`SolverResult` for the given instance."""
+        """Produce a :class:`SolverResult` for the given instance.
+
+        Subclasses may accept additional keyword-only arguments (e.g. the
+        joint solver accepts ``warm_start``); the base contract is just the
+        three positional inputs.
+        """
         raise NotImplementedError

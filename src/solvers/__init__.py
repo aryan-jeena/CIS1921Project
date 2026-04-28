@@ -9,11 +9,13 @@ from .base import BaseSolver
 from .nutrition_only import NutritionOnlySolver
 from .two_stage import TwoStageSolver
 from .joint_cpsat import JointCPSATSolver
+from .joint_lns import JointWarmStartSolver
 
 ALL_SOLVERS: dict[str, type[BaseSolver]] = {
     "nutrition_only": NutritionOnlySolver,
     "two_stage": TwoStageSolver,
     "joint_cpsat": JointCPSATSolver,
+    "joint_warmstart": JointWarmStartSolver,
 }
 
 __all__ = [
@@ -21,5 +23,6 @@ __all__ = [
     "NutritionOnlySolver",
     "TwoStageSolver",
     "JointCPSATSolver",
+    "JointWarmStartSolver",
     "ALL_SOLVERS",
 ]

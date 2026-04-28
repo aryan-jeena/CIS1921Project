@@ -1,7 +1,8 @@
 # Constraint-Based Training, Nutrition, and Health Schedule Optimizer
 
-CIS 1921 final project. A personalized weekly fitness + nutrition scheduler
-driven by three increasingly expressive optimization formulations:
+CIS 1921 final project (Aryan Jeena, Aadithya Srinivasan). A personalized
+weekly fitness + nutrition scheduler driven by **four** directly comparable
+optimization formulations:
 
 1. **Nutrition-only MIP** (baseline): choose foods to satisfy macros, budget,
    and dietary exclusions.
@@ -11,10 +12,15 @@ driven by three increasingly expressive optimization formulations:
 3. **Joint CP-SAT** optimizer: a single model decides food servings *and*
    scheduling simultaneously, letting the solver trade macro deviation for
    better timing around workouts.
+4. **Joint CP-SAT with LNS warm-start** (added in response to proposal
+   feedback): runs two-stage first and then seeds the joint model with the
+   resulting plan via `model.AddHint(...)`, so CP-SAT prunes large parts of
+   the tree on its first probe while still being free to swap.
 
 The repo is structured to support a report: experiment scripts write
 machine-readable CSVs and PNGs, and the instance generator lets you sweep
-across scaling and constraint-tightness axes.
+across scaling, constraint-tightness, *and* the new pantry-mode axes. See
+`reports/final_report.md` for the full write-up.
 
 ## Motivation
 
@@ -99,18 +105,47 @@ List bundled presets:
 python -m src.app.cli presets
 ```
 
+### Pantry / dining-hall mode
+
+Per check-in feedback we model what foods the user actually has access to
+(fridge / pantry / dining hall) instead of treating the catalog as a
+universal grocery store. Pass `--pantry-size N` (or use a scenario whose
+profile sets `enforce_pantry=True`) to restrict the solver to a
+deterministic N-food subset:
+
+```bash
+python -m src.app.cli solve --scenario pantry_dining_hall \
+    --solver joint_cpsat --pantry-size 14 --figure
+```
+
+In pantry mode the cost weight is zeroed out -- once the food is in the
+fridge / paid for via a meal swipe, cost is no longer the dominant
+tradeoff. Macro fit and schedule pleasantness become the binding objective
+terms.
+
 ## Experiments
 
 Run the full sweep and regenerate the figures under `reports/figures/`:
 
 ```bash
 python scripts/run_experiments.py --time-limit 30
+# or, equivalently, the unified CLI with custom prefix:
+python -m src.app.cli experiments --time-limit 25 --prefix final
 ```
 
-Scaling study (runtime vs. food-catalog size):
+Scaling study (runtime vs. food-catalog size, denser sweep up to n=200):
 
 ```bash
-python scripts/run_scaling_study.py
+python scripts/run_scaling_study.py --max-foods 100 --time-limit 30
+```
+
+Generate the report-oriented figures (log-log scaling fits, cost/protein
+Pareto, feasibility heatmap, objective breakdown, summary table):
+
+```bash
+python scripts/generate_results_graphics.py \
+    --input reports/tables/final_long.csv \
+    --out-dir reports/figures/results_graphics --prefix final
 ```
 
 Both commands write long-format CSVs to `reports/tables/` and PNGs to
@@ -143,14 +178,17 @@ non-overlap, joint solver recovery-rule enforcement, validator + metrics.
 
 ## Solver comparison at a glance
 
-| Aspect                              | nutrition_only | two_stage | joint_cpsat |
-| ----------------------------------- | :------------: | :-------: | :---------: |
-| Macros + budget                     |       ✓        |     ✓     |      ✓      |
-| Workout scheduling                  |       ✗        |     ✓     |      ✓      |
-| Sleep + recovery spacing            |       ✗        |     ✓     |      ✓      |
-| Peri-workout meal timing            |       ✗        |  partial  |      ✓      |
-| Can trade macro slack for schedule  |       ✗        |     ✗     |      ✓      |
-| Typical runtime (curated catalog)   |    < 0.5 s     |  1–5 s    |    2–15 s   |
+| Aspect                              | nutrition_only | two_stage | joint_cpsat | joint_warmstart |
+| ----------------------------------- | :------------: | :-------: | :---------: | :-------------: |
+| Macros + budget                     |       ✓        |     ✓     |      ✓      |        ✓        |
+| Workout scheduling                  |       ✗        |     ✓     |      ✓      |        ✓        |
+| Sleep + recovery spacing            |       ✗        |     ✓     |      ✓      |        ✓        |
+| Peri-workout meal timing            |       ✗        |  partial  |      ✓      |        ✓        |
+| Hydration reminders (soft)          |       ✗        |     ✗     |      ✓      |        ✓        |
+| Pantry / dining-hall restriction    |       ✓        |     ✓     |      ✓      |        ✓        |
+| Can trade macro slack for schedule  |       ✗        |     ✗     |      ✓      |        ✓        |
+| Warm-started from two-stage plan    |       ✗        |     ✗     |      ✗      |        ✓        |
+| Typical runtime (curated catalog)   |    < 0.5 s     |  < 0.5 s  |    1–15 s   |     2–15 s      |
 
 ## Known limitations
 
@@ -167,16 +205,19 @@ non-overlap, joint solver recovery-rule enforcement, validator + metrics.
 
 ## Future work
 
-- Column-generation style pre-filtering (seed each meal bucket with a
-  small shortlist of foods) to scale past 100 foods.
-- Infeasibility explanations via CP-SAT assumption tracking (OR-Tools
-  `assumption` variables) to tell users *which* constraint forced the
-  problem to be infeasible.
-- Better Penn Dining scraper with cookie-aware fetching.
-- USDA FoodData Central ingestion end-to-end (currently loader exists but
-  expects a pre-joined summary CSV).
+- Column-generation / Benders-style decomposition to scale past 200 foods.
+  Joint CP-SAT is well-behaved up to ~100; beyond that the
+  `(food × meal_type × day)` combinatorics start to bite.
+- Real Penn Dining scraping behind a feature flag (the current sample is
+  semantically identical to what the page would yield, but updating it
+  requires hand-curation; a cookie-aware Playwright fetcher is the next
+  natural step).
+- Online re-optimization as the week progresses (a missed workout triggers
+  a partial re-solve over the remaining days).
+- Per-meal protein floor as a hard constraint in pantry mode.
 
 ## Project identity
 
 See `CLAUDE.md` for the design brief this project is built against.
-`reports/draft_outline.md` gives the section structure for the final report.
+`reports/final_report.md` is the final write-up. `reports/draft_outline.md`
+captures the original section structure used to plan the writeup.

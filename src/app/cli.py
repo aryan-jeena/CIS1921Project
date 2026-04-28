@@ -21,6 +21,7 @@ from src.evaluation.metrics import compute_metrics
 from src.evaluation.validator import validate_plan
 from src.experiments.instance_generator import (
     InstanceParams,
+    apply_pantry_to_user,
     generate_scenario_suite,
     generate_user,
 )
@@ -60,6 +61,14 @@ def _cmd_solve(args: argparse.Namespace) -> int:
     foods = build_food_catalog(exclusions=user.dietary_exclusions,
                                include_penn=not args.no_penn)
     workouts = load_sample_workouts()
+
+    # Pantry mode: restrict the food set to a fixed dining-hall / fridge
+    # subset. We use either an explicit ``--pantry-size`` argument or whatever
+    # the scenario already configured.
+    if args.pantry_size or user.enforce_pantry:
+        size = args.pantry_size or 18
+        user = apply_pantry_to_user(user, foods, pantry_size=size, seed=args.seed)
+        print(f"Pantry mode: restricted to {len(user.pantry_food_ids)} foods.")
 
     print(f"Solving with {args.solver} on {user.name} "
           f"({len(foods)} foods, {len(workouts)} workouts)...")
@@ -137,6 +146,16 @@ def _cmd_experiments(args: argparse.Namespace) -> int:
         instances = generate_scenario_suite(seed=args.seed)
     solvers = args.solvers.split(",") if args.solvers else list(ALL_SOLVERS.keys())
 
+    # Scenarios that flagged ``enforce_pantry=True`` need a concrete pantry
+    # bound to the loaded catalog. We do that here so the experiment row
+    # actually exercises the pantry-mode code path.
+    foods_for_pantry = build_food_catalog()
+    instances = [
+        apply_pantry_to_user(u, foods_for_pantry, pantry_size=18, seed=args.seed)
+        if u.enforce_pantry and not u.pantry_food_ids else u
+        for u in instances
+    ]
+
     print(f"Running {len(instances)} instances × {len(solvers)} solvers "
           f"(time_limit={args.time_limit}s)...\n")
     df = run_experiment_suite(
@@ -201,6 +220,13 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--figure", action="store_true",
                     help="Save a weekly-schedule PNG under reports/figures/")
     sp.add_argument("--save-json", action="store_true", dest="save_json")
+    sp.add_argument(
+        "--pantry-size", type=int, default=0, dest="pantry_size",
+        help=(
+            "If > 0, switch to pantry mode and restrict the solver to that "
+            "many curated foods (the user's fridge / dining-hall access)."
+        ),
+    )
     sp.set_defaults(func=_cmd_solve)
 
     # ---- demo

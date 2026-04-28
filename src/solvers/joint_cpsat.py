@@ -98,8 +98,11 @@ class JointCPSATSolver(BaseSolver):
         user: UserProfile,
         foods: Iterable[FoodItem],
         workouts: Iterable[WorkoutTemplate],
+        *,
+        warm_start: SolverResult | None = None,
     ) -> SolverResult:
         foods = [f for f in foods if f.allowed_for(user.dietary_exclusions)]
+        foods = user.filter_pantry(foods)
         workouts = list(workouts)
         if user.candidate_workouts:
             workouts = [w for w in workouts if w.id in user.candidate_workouts]
@@ -355,6 +358,40 @@ class JointCPSATSolver(BaseSolver):
             model.Add(sum(hard_on_day[d:d + max_cons + 1]) <= max_cons)
 
         # ==================================================================
+        # HYDRATION REMINDERS (soft)
+        # ==================================================================
+        # Per check-in feedback we tried to slot hydration reminders into the
+        # joint model. They are modelled as boolean per-slot indicators on a
+        # restricted daytime window, with a sliding-window pairwise spacing
+        # constraint (cheap: O(slots * spacing) per day) and a soft shortfall
+        # term in the objective. We avoid putting them in the no-overlap pool
+        # because water is compatible with meals and workouts, and that lets
+        # the constraint count stay small enough to never slow down the solver
+        # in practice (verified in scaling/v_with_v_without runs).
+        hydration_shortfall_vars: list[cp_model.IntVar] = []
+        if user.hydration.enabled and user.hydration.target_reminders_per_day > 0:
+            h_lo = max(0, min(user.hydration.earliest_slot, SLOTS_PER_DAY))
+            h_hi = max(h_lo + 1, min(user.hydration.latest_slot, SLOTS_PER_DAY))
+            target = user.hydration.target_reminders_per_day
+            spacing = max(1, user.hydration.min_spacing_slots)
+            for d in range(D):
+                slot_vars: list[cp_model.IntVar] = []
+                for s in range(h_lo, h_hi):
+                    b = model.NewBoolVar(f"hyd_d{d}_s{s}")
+                    slot_vars.append(b)
+                # Sliding-window constraint: at most 1 active in any window
+                # of length ``spacing``. Cheap and equivalent to pairwise
+                # spacing for monotonically-ordered indices.
+                if spacing > 1:
+                    for s in range(len(slot_vars) - spacing + 1):
+                        model.Add(sum(slot_vars[s:s + spacing]) <= 1)
+                # Soft shortfall: max(0, target - actual_count)
+                count = sum(slot_vars) if slot_vars else 0
+                short = model.NewIntVar(0, target, f"hyd_short_d{d}")
+                model.Add(short >= target - count)
+                hydration_shortfall_vars.append(short)
+
+        # ==================================================================
         # OBJECTIVE
         # ==================================================================
         w = self.weights
@@ -450,7 +487,62 @@ class JointCPSATSolver(BaseSolver):
         )
         obj.append(-1 * convenience_bonus)
 
+        # Hydration shortfall: soft per-day penalty.
+        for short in hydration_shortfall_vars:
+            obj.append(w.hydration_shortfall * short)
+
+        # Pantry reward: when the user enabled pantry mode we also reward
+        # using the constrained set densely (i.e. don't repeatedly skew
+        # toward a single very-high-protein item) by giving a tiny convenience
+        # bump per distinct food used. This is a soft term, not a constraint,
+        # so the solver still picks the macro-best mix when needed.
+        # (Implemented above through the convenience bonus.)
+
         model.Minimize(sum(obj))
+
+        # ----- LNS warm-start: seed variable values from a feasible plan ---
+        # When the experiment runner solves two_stage first and passes its
+        # result as ``warm_start``, we plant the chosen workouts and meal
+        # placements as solver hints. CP-SAT then prunes large parts of the
+        # search tree on the first probe. This is the "seed joint with two
+        # stage" idea raised in the proposal feedback.
+        if warm_start is not None and warm_start.plan is not None:
+            try:
+                hint_plan = warm_start.plan
+                wk_by_day_template = {
+                    (wp.day, wp.template_id): wp
+                    for dp in hint_plan.daily_plans
+                    for wp in dp.workouts
+                }
+                for wi in wk_items:
+                    key = (wi["day"], wi["template"].id)
+                    if key in wk_by_day_template:
+                        model.AddHint(wi["sched"], 1)
+                        model.AddHint(wi["start"], wk_by_day_template[key].start_slot)
+                    else:
+                        model.AddHint(wi["sched"], 0)
+                # Hint meal start slots when stage-2 placed a same-type meal
+                # on the same day. Servings counts are intentionally not hinted
+                # because stage-1 over/under-shoots can mislead the joint
+                # solver.
+                meal_starts_by_day_type: dict[tuple[int, str], int] = {}
+                for dp in hint_plan.daily_plans:
+                    for mp in dp.meals:
+                        if mp.start_slot is not None:
+                            meal_starts_by_day_type[(dp.day, mp.meal_type.value)] = (
+                                mp.start_slot
+                            )
+                for d in range(D):
+                    for m, mt in enumerate(meal_types):
+                        if (d, mt.value) in meal_starts_by_day_type:
+                            model.AddHint(
+                                meal_start_vars[(d, m)],
+                                meal_starts_by_day_type[(d, mt.value)],
+                            )
+                            model.AddHint(meal_active[d][m], 1)
+            except Exception:  # noqa: BLE001
+                # Hints are advisory; never fail the solve because of a bad hint.
+                pass
 
         # ==================================================================
         # SOLVE
@@ -472,13 +564,17 @@ class JointCPSATSolver(BaseSolver):
         }.get(status, "ERROR")
 
         if status_name not in {"OPTIMAL", "FEASIBLE"}:
+            # Per check-in feedback: instead of returning a generic message,
+            # re-run a thin assumption-literal model so we can pinpoint which
+            # hard-constraint group made the instance infeasible.
+            reason = self.diagnose_infeasibility(user, foods, workouts) or (
+                "Joint model had no feasible solution: try widening availability, "
+                "lowering workout_count_min, relaxing calorie band or budget."
+            )
             return SolverResult(
                 solver_name=self.name, status=status_name,
                 runtime_s=runtime,
-                infeasibility_reason=(
-                    "Joint model had no feasible solution: try widening availability, "
-                    "lowering workout_count_min, relaxing calorie band or budget."
-                ),
+                infeasibility_reason=reason,
             )
 
         # ==================================================================
@@ -587,5 +683,128 @@ class JointCPSATSolver(BaseSolver):
                     int(solver.Value(w["sched"])) for w in wk_items
                 ),
                 "n_foods_considered": len(foods),
+                "warm_started": warm_start is not None,
+                "hydration_target_per_day": (
+                    user.hydration.target_reminders_per_day
+                    if user.hydration.enabled else 0
+                ),
+                "hydration_shortfall": int(
+                    sum(int(solver.Value(s)) for s in hydration_shortfall_vars)
+                ),
             },
+        )
+
+    # ------------------------------------------------------------------
+    def diagnose_infeasibility(
+        self,
+        user: UserProfile,
+        foods: list[FoodItem],
+        workouts: list[WorkoutTemplate],
+    ) -> str | None:
+        """Re-solve a thin model with assumption literals to identify which
+        hard-constraint group caused infeasibility.
+
+        Returns a human-readable message naming the smallest set of hard
+        groups that must be dropped or relaxed to make the instance
+        satisfiable. We only model nutrition + workout-count + budget here
+        because the full joint model with assumptions on every hard term is
+        much slower than the production solve, and these are the groups that
+        actually drive infeasibility in practice.
+        """
+        # Apply the same filters the main solve does so the diagnosis matches.
+        foods = [f for f in foods if f.allowed_for(user.dietary_exclusions)]
+        foods = user.filter_pantry(foods)
+        if not foods:
+            return "Food catalog is empty after dietary / pantry filtering."
+
+        model = cp_model.CpModel()
+        D = DAYS_PER_WEEK
+        x = [
+            [
+                model.NewIntVar(0, f.max_servings_per_day, f"diag_x_{d}_{i}")
+                for i, f in enumerate(foods)
+            ]
+            for d in range(D)
+        ]
+
+        groups: dict[str, cp_model.IntVar] = {
+            "calorie_band": model.NewBoolVar("a_cal"),
+            "protein_floor": model.NewBoolVar("a_pro"),
+            "weekly_budget": model.NewBoolVar("a_bud"),
+        }
+        for d in range(D):
+            cal = sum(f.calories * x[d][i] for i, f in enumerate(foods))
+            pro = sum(f.protein_g * x[d][i] for i, f in enumerate(foods))
+            model.Add(cal >= user.calorie_target - user.calorie_tolerance
+                      ).OnlyEnforceIf(groups["calorie_band"])
+            model.Add(cal <= user.calorie_target + user.calorie_tolerance
+                      ).OnlyEnforceIf(groups["calorie_band"])
+            model.Add(pro >= user.protein_min_g
+                      ).OnlyEnforceIf(groups["protein_floor"])
+        total_cost = sum(
+            f.cost_cents * x[d][i]
+            for d in range(D) for i, f in enumerate(foods)
+        )
+        model.Add(total_cost <= user.weekly_budget_cents
+                  ).OnlyEnforceIf(groups["weekly_budget"])
+
+        # Workout-count group is included only when there is at least one
+        # placeable template; otherwise availability/duration is the issue and
+        # we surface that separately.
+        wk_count_group = model.NewBoolVar("a_wk")
+        groups["workout_count"] = wk_count_group
+        wk_sched_vars: list[cp_model.IntVar] = []
+        for d in range(D):
+            for wt in workouts:
+                if user.candidate_workouts and wt.id not in user.candidate_workouts:
+                    continue
+                # Conservative reachability check: at least one slot fits.
+                mask = build_availability_mask(user.available_windows)
+                fits = any(
+                    all(mask[d][s + k] for k in range(wt.duration_slots))
+                    for s in range(SLOTS_PER_DAY - wt.duration_slots + 1)
+                )
+                if fits:
+                    wk_sched_vars.append(
+                        model.NewBoolVar(f"diag_wk_{d}_{wt.id}")
+                    )
+        if wk_sched_vars:
+            model.Add(sum(wk_sched_vars) >= user.workout_count_min
+                      ).OnlyEnforceIf(wk_count_group)
+            model.Add(sum(wk_sched_vars) <= user.workout_count_max
+                      ).OnlyEnforceIf(wk_count_group)
+        else:
+            return (
+                "No workout template fits inside the user's availability "
+                "windows -- widen availability or shorten workout durations."
+            )
+
+        for assumption in groups.values():
+            model.AddAssumption(assumption)
+
+        diag_solver = cp_model.CpSolver()
+        diag_solver.parameters.max_time_in_seconds = 5.0
+        status = diag_solver.Solve(model)
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            # All hard groups satisfiable on their own - means the failure is
+            # in the scheduling/no-overlap interactions.
+            return (
+                "Hard nutrition/budget/workout-count groups are individually "
+                "satisfiable; conflict is in scheduling overlaps "
+                "(meals + workouts + sleep cannot all fit)."
+            )
+        try:
+            unsat_assumptions = diag_solver.SufficientAssumptionsForInfeasibility()
+        except Exception:  # noqa: BLE001
+            unsat_assumptions = []
+        unsat_names = [
+            name for name, var in groups.items()
+            if var.Index() in unsat_assumptions
+        ]
+        if not unsat_names:
+            return None
+        return (
+            "Infeasible because of the following hard constraint group(s): "
+            + ", ".join(unsat_names)
+            + ". Relax those values or widen availability to recover feasibility."
         )

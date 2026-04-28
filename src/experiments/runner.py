@@ -73,6 +73,20 @@ def run_single(
     row["instance"] = user.name
     row["solver"] = solver.name
     row["error"] = ""
+    # Record problem size so scaling figures don't have to fall back to a
+    # row index for the x-axis.
+    row["n_foods"] = len(foods)
+    row["n_workouts"] = len(workouts)
+    row["pantry_mode"] = bool(user.enforce_pantry and user.pantry_food_ids)
+    row["hydration_target"] = (
+        user.hydration.target_reminders_per_day
+        if user.hydration.enabled else 0
+    )
+    if result.extras:
+        if "warm_started" in result.extras:
+            row["warm_started"] = bool(result.extras["warm_started"])
+        if "hydration_shortfall" in result.extras:
+            row["hydration_shortfall"] = int(result.extras["hydration_shortfall"])
 
     # Cross-check hard constraints
     if result.plan is not None:

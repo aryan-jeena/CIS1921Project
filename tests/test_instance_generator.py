@@ -16,11 +16,22 @@ def test_generator_is_deterministic():
 
 def test_scenario_suite_covers_all_named_scenarios():
     suite = generate_scenario_suite(seed=0)
-    names = {u.name.split("_")[0] for u in suite}
     # Generator prefixes the scenario name, so the set of scenarios should
     # match what the CLI and docs advertise.
     assert "balanced" in "_".join(u.name for u in suite)
-    assert len(suite) == 9
+    # All twelve advertised scenarios should appear (9 originals + 3 added in
+    # response to check-in feedback: pantry_dining_hall, mixed_split,
+    # high_volume_athlete).
+    assert len(suite) == 12
+    advertised = {
+        "balanced", "budget_student", "lean_bulk", "aggressive_cut",
+        "vegetarian_athlete", "tight_class_schedule", "early_morning_lifter",
+        "recovery_constrained", "mixed_split", "high_volume_athlete",
+        "pantry_dining_hall", "impossible_case",
+    }
+    joined = "_".join(u.name for u in suite)
+    for name in advertised:
+        assert name in joined, f"missing scenario: {name}"
 
 
 def test_impossible_case_has_hopeless_inputs():
