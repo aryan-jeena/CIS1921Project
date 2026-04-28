@@ -39,17 +39,13 @@ _COLORS: dict[ActivityKind, str] = {
 def _short_label(label: str) -> str:
     """Trim labels for figure rendering.
 
-    Block labels carry full detail in the textual schedule; on the figure
-    we only need a glance-friendly tag. Drop the meal-type prefix
-    ("breakfast: ", "dinner: ", ...) and any food-list tail ("x2, ..."),
-    and trim workout labels to drop the trailing "(intensity)" suffix
-    since intensity is encoded by the color.
+    Drop meal-type prefix ("breakfast: ..." -> "breakfast") and the
+    trailing "(intensity)" suffix from workout names since intensity is
+    encoded by the bar colour.
     """
     if ":" in label:
         head, _, tail = label.partition(":")
         head = head.strip()
-        # Meal labels look like "dinner: Chicken & Rice Bowl x2, ..."
-        # Keep the meal-type only — readable at small width.
         if head in {"breakfast", "lunch", "dinner", "snack",
                     "pre_workout", "post_workout"}:
             return head
@@ -59,8 +55,38 @@ def _short_label(label: str) -> str:
     return label[:22]
 
 
+def _fit_workout_label(label: str, width_slots: float) -> tuple[str, int]:
+    """Pick a label string + fontsize that fits inside a workout bar.
+
+    width_slots is in 30-min units. ~3 chars fit per slot at fontsize=8.
+    """
+    short = _short_label(label)
+    capacity_8 = max(1, int(width_slots * 3.0))
+    if len(short) <= capacity_8:
+        return short, 8
+    # Try a smaller font.
+    capacity_7 = max(1, int(width_slots * 3.5))
+    if len(short) <= capacity_7:
+        return short, 7
+    # Fall back to first word + ellipsis.
+    first = short.split()[0]
+    capacity_6 = max(1, int(width_slots * 4.0))
+    if len(first) <= capacity_6:
+        return first, 6
+    return first[: max(2, capacity_6 - 1)] + "…", 6
+
+
 def render_schedule_to_figure(plan: Plan, path: Path | None = None):
     """Draw the weekly grid. Returns (fig, saved_path|None)."""
+    # Use a clean sans-serif system font instead of matplotlib's default
+    # DejaVu Sans, which looks dated next to modern slide decks.
+    plt.rcParams.update({
+        "font.family": "sans-serif",
+        "font.sans-serif": [
+            "Helvetica Neue", "Inter", "SF Pro Text", "Helvetica",
+            "Arial", "DejaVu Sans",
+        ],
+    })
     # Wider canvas: 13" wide gives meal labels room without truncation.
     fig, ax = plt.subplots(figsize=(13, 6.2))
 
@@ -141,49 +167,38 @@ def render_schedule_to_figure(plan: Plan, path: Path | None = None):
         ax.add_patch(rect)
 
     # ---- labels with collision avoidance --------------------------------
-    # For each day we know which foreground events exist; place workout
-    # labels INSIDE the bar when wide, ABOVE when narrow, and meal labels
-    # BELOW the day row. Collisions between back-to-back events are
-    # resolved by alternating above/below for adjacent narrow blocks.
+    # Workout labels go INSIDE the bar (auto-shrunk + truncated to fit) so
+    # adjacent workouts on the same day cannot collide horizontally. Meal
+    # labels go BELOW the day row; adjacent meals stagger their offset so
+    # short labels like "snack" + "lunch" don't sit on top of each other.
     for d in range(DAYS_PER_WEEK):
         events = sorted(fg_by_day[d], key=lambda e: e[1].start_slot)
         last_below_end = -10
-        last_above_end = -10
+        last_below_offset = 0.92
         for kind, b, width in events:
-            label = _short_label(b.label)
             cx = (b.start_slot + b.end_slot) / 2
             if kind == "workout":
-                # Big enough to hold the label cleanly?
-                if width >= 3.5:
-                    ax.text(
-                        cx, b.day + 0.50, label,
-                        fontsize=8, color="white", fontweight="bold",
-                        ha="center", va="center", zorder=6,
-                    )
-                else:
-                    # Label above the row.
-                    y = b.day + 0.02
-                    ax.annotate(
-                        label,
-                        xy=(cx, b.day + 0.05),
-                        xytext=(cx, y - 0.18),
-                        fontsize=7, color="#7f1d1d", fontweight="bold",
-                        ha="center", va="center", zorder=6,
-                        arrowprops=dict(arrowstyle="-", color="#7f1d1d",
-                                        linewidth=0.6, shrinkA=0, shrinkB=0),
-                    )
+                label, size = _fit_workout_label(b.label, width)
+                ax.text(
+                    cx, b.day + 0.50, label,
+                    fontsize=size, color="white", fontweight="bold",
+                    ha="center", va="center", zorder=6,
+                )
             else:  # meal
-                # Below-row label, with a small bump if the previous
-                # below-row label is too close.
-                offset = 0.92
-                if b.start_slot < last_below_end + 4:
-                    offset = 1.08    # push further down to avoid overlap
+                label = _short_label(b.label)
+                # Stagger adjacent meal labels (within ~2 hours of each
+                # other) onto two rows so short tags don't overlap.
+                if b.start_slot < last_below_end + 5:
+                    offset = 1.05 if last_below_offset < 1.0 else 0.92
+                else:
+                    offset = 0.92
                 ax.text(
                     cx, b.day + offset, label,
-                    fontsize=6.5, color="#166534",
+                    fontsize=7, color="#166534",
                     ha="center", va="top", zorder=6,
                 )
-                last_below_end = max(last_below_end, b.end_slot)
+                last_below_end = b.end_slot
+                last_below_offset = offset
 
     # ---- axes ------------------------------------------------------------
     tick_slots = list(range(0, SLOTS_PER_DAY + 1, 4))
@@ -193,7 +208,7 @@ def render_schedule_to_figure(plan: Plan, path: Path | None = None):
         rotation=0, fontsize=8, color="#475569",
     )
     ax.set_yticks([d + 0.5 for d in range(DAYS_PER_WEEK)])
-    ax.set_yticklabels(DAY_NAMES, fontsize=10, color="#0f172a")
+    ax.set_yticklabels(DAY_NAMES, fontsize=9, color="#334155")
     for spine in ax.spines.values():
         spine.set_edgecolor("#cbd5e1")
         spine.set_linewidth(0.7)
