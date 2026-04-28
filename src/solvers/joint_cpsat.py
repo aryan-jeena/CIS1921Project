@@ -229,12 +229,21 @@ class JointCPSATSolver(BaseSolver):
         meal_end_vars: dict[tuple[int, int], cp_model.IntVar] = {}
         meal_intervals_by_day: list[list] = [[] for _ in range(D)]
 
+        # Sleep window in slots — used below to clamp every other activity's
+        # slot domain. Computed once here (formerly later in the file). The
+        # user's availability mask alone is not enough: instance_generator
+        # builds availability around classes/workouts but does not always
+        # carve out sleep, so meals and hydration could otherwise land
+        # before wake-up.
+        wake_clamp = min(user.sleep.latest_wake_slot, SLOTS_PER_DAY)
+        bed_clamp = max(user.sleep.earliest_bedtime_slot, 0)
+
         for d in range(D):
             for m, mt in enumerate(meal_types):
                 window_lo, window_hi = _DEFAULT_MEAL_WINDOWS[mt]
                 allowed = [
                     s for s in range(window_lo, min(window_hi, SLOTS_PER_DAY))
-                    if mask[d][s]
+                    if mask[d][s] and wake_clamp <= s < bed_clamp
                 ]
                 if not allowed:
                     # No valid placement: force this meal inactive.
@@ -265,6 +274,7 @@ class JointCPSATSolver(BaseSolver):
                 valid = [
                     s for s in range(SLOTS_PER_DAY - dur + 1)
                     if all(mask[d][s + k] for k in range(dur))
+                    and s >= wake_clamp and s + dur <= bed_clamp
                 ]
                 if not valid:
                     continue
@@ -378,6 +388,10 @@ class JointCPSATSolver(BaseSolver):
         if user.hydration.enabled and user.hydration.target_reminders_per_day > 0:
             h_lo = max(0, min(user.hydration.earliest_slot, SLOTS_PER_DAY))
             h_hi = max(h_lo + 1, min(user.hydration.latest_slot, SLOTS_PER_DAY))
+            # Clamp into the user's waking hours; reminders before wake or
+            # after bedtime would render inside the sleep block.
+            h_lo = max(h_lo, wake_clamp)
+            h_hi = min(h_hi, bed_clamp)
             target = user.hydration.target_reminders_per_day
             spacing = max(1, user.hydration.min_spacing_slots)
             for d in range(D):
