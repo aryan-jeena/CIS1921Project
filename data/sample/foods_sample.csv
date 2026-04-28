@@ -1,0 +1,49 @@
+id,name,calories,protein_g,carbs_g,fat_g,sodium_mg,cost_cents,meal_types,dietary_tags,convenience,max_servings_per_day
+oats_bowl,Oatmeal bowl w/ milk,320,12,48,9,180,150,"breakfast","vegetarian;contains_dairy;contains_gluten",8,2
+greek_yogurt,Plain Greek yogurt (1 cup),150,17,9,4,80,200,"breakfast;snack","vegetarian;contains_dairy",9,3
+eggs_two,"Two scrambled eggs",160,12,2,11,180,120,"breakfast;snack","vegetarian",9,3
+egg_white_omelet,Egg-white veggie omelet,180,24,6,4,320,300,"breakfast","vegetarian",5,1
+peanut_butter_toast,Peanut butter toast,280,10,32,13,210,150,"breakfast;snack","vegetarian;contains_gluten;contains_nuts",9,2
+protein_shake_whey,Whey protein shake,170,35,6,2,120,180,"snack;post_workout","vegetarian;contains_dairy",10,2
+protein_shake_vegan,Pea protein shake,160,30,7,3,150,220,"snack;post_workout","vegan;vegetarian",10,2
+banana,Banana,110,1,27,0,1,30,"snack;pre_workout","vegan;vegetarian",10,3
+apple,Apple,95,0,25,0,2,50,"snack","vegan;vegetarian",10,3
+chicken_breast_6oz,Grilled chicken breast (6 oz),280,53,0,6,120,450,"lunch;dinner","halal",5,2
+chicken_rice_bowl,Chicken rice bowl,620,45,75,15,680,900,"lunch;dinner","halal;contains_gluten",7,1
+turkey_sandwich,Turkey avocado sandwich,520,32,50,18,780,700,"lunch","contains_gluten",8,1
+tuna_salad,Tuna salad plate,380,38,20,14,520,650,"lunch;dinner","contains_shellfish;contains_dairy",6,1
+salmon_fillet_6oz,Grilled salmon (6 oz),360,40,0,20,100,950,"lunch;dinner",,5,1
+beef_steak_6oz,Sirloin steak (6 oz),410,45,0,24,90,1100,"dinner","contains_beef",4,1
+pork_chop,Pork chop,330,30,0,22,95,700,"dinner","contains_pork",4,1
+tofu_stirfry,Tofu veggie stir-fry,420,26,38,18,620,650,"lunch;dinner","vegan;vegetarian",6,1
+quinoa_bowl_veg,Quinoa veggie bowl,480,18,70,14,480,700,"lunch;dinner","vegan;vegetarian",6,1
+black_bean_burrito,Black bean burrito,600,22,88,16,900,650,"lunch;dinner","vegetarian;contains_gluten;contains_dairy",8,1
+veggie_chili,Veggie chili,380,20,55,8,720,500,"lunch;dinner","vegan;vegetarian",7,2
+caesar_salad_grilled,Caesar salad w/ chicken,440,35,22,22,820,750,"lunch;dinner","halal;contains_dairy;contains_gluten",6,1
+sweet_potato_large,Large sweet potato,180,4,41,0,80,180,"lunch;dinner","vegan;vegetarian",8,2
+brown_rice_cup,Cooked brown rice (1 cup),220,5,46,2,10,90,"lunch;dinner","vegan;vegetarian",9,3
+whole_wheat_pasta_cup,Whole-wheat pasta (1 cup),220,8,43,2,10,100,"lunch;dinner","vegetarian;contains_gluten",8,2
+broccoli_cup,Steamed broccoli (1 cup),55,4,11,1,60,100,"lunch;dinner","vegan;vegetarian",9,3
+mixed_veg_cup,Mixed sauteed veg,90,3,14,3,120,120,"lunch;dinner","vegan;vegetarian",8,3
+cottage_cheese,Cottage cheese (1 cup),220,28,8,5,700,250,"snack;breakfast","vegetarian;contains_dairy",9,2
+protein_bar,Protein bar,210,20,22,7,180,250,"snack;pre_workout","vegetarian;contains_dairy;contains_nuts",10,2
+trail_mix,Trail mix (1 oz),140,4,14,9,40,120,"snack","vegan;vegetarian;contains_nuts",10,2
+almonds_quarter_cup,Almonds (1/4 cup),200,7,8,18,0,180,"snack","vegan;vegetarian;contains_nuts",10,2
+cheese_string,String cheese,80,6,1,6,200,100,"snack","vegetarian;contains_dairy",10,2
+milk_cup,Milk (1 cup),150,8,12,8,100,100,"breakfast;snack","vegetarian;contains_dairy",9,3
+soy_milk_cup,Soy milk (1 cup),110,8,9,4,90,120,"breakfast;snack","vegan;vegetarian",8,2
+orange_juice_cup,Orange juice (1 cup),110,2,26,0,2,120,"breakfast","vegan;vegetarian",9,2
+avocado_half,Avocado (1/2),120,2,6,11,5,150,"breakfast;lunch;dinner","vegan;vegetarian",8,2
+falafel_wrap,Falafel wrap,520,18,65,22,820,700,"lunch;dinner","vegetarian;contains_gluten",7,1
+shrimp_stirfry,Shrimp stir-fry,380,32,40,10,820,900,"lunch;dinner","contains_shellfish",5,1
+pizza_slice_cheese,Cheese pizza slice,280,12,36,10,560,300,"lunch;dinner","vegetarian;contains_dairy;contains_gluten",9,2
+burger_cheese,Cheeseburger,560,28,42,30,900,650,"lunch;dinner","contains_beef;contains_dairy;contains_gluten",8,1
+salad_chickpea,Mediterranean chickpea salad,420,18,48,18,620,650,"lunch;dinner","vegan;vegetarian",6,1
+rice_and_beans,Rice and beans plate,540,20,90,8,500,400,"lunch;dinner","vegan;vegetarian",7,1
+chicken_wrap,Chicken caesar wrap,520,32,46,22,780,700,"lunch","halal;contains_dairy;contains_gluten",8,1
+smoothie_berry,Berry protein smoothie,260,24,32,3,140,400,"breakfast;snack;post_workout","vegetarian;contains_dairy",9,2
+granola_bar,Granola bar,180,4,28,6,90,100,"snack","vegetarian;contains_gluten;contains_nuts",10,3
+hummus_pita,Hummus and pita,360,12,48,14,560,350,"snack;lunch","vegan;vegetarian;contains_gluten",8,1
+edamame_cup,Edamame (1 cup),190,17,15,8,15,200,"snack","vegan;vegetarian",8,2
+rice_cakes_two,Two rice cakes w/ PB,200,7,26,8,90,120,"snack;pre_workout","vegan;vegetarian;contains_nuts",10,2
+chocolate_milk,Chocolate milk (1 cup),210,8,28,8,180,130,"post_workout;snack","vegetarian;contains_dairy",9,2

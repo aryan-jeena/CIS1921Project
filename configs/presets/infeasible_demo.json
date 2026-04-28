@@ -1,0 +1,31 @@
+{
+  "name": "infeasible_demo",
+  "goal": "cut",
+  "calorie_target": 1700,
+  "calorie_tolerance": 30,
+  "protein_min_g": 260,
+  "protein_target_g": 300,
+  "carb_target_g": 120,
+  "fat_target_g": 45,
+  "min_protein_per_meal_g": 50,
+  "weekly_budget_cents": 1500,
+  "available_windows": [
+    {"day": 0, "start_slot": 14, "end_slot": 16}
+  ],
+  "max_meals_per_day": 2,
+  "workout_count_min": 7,
+  "workout_count_max": 7,
+  "candidate_workouts": ["full_body_a", "upper_heavy", "lower_heavy"],
+  "sleep": {
+    "min_hours": 9,
+    "earliest_bedtime_slot": 42,
+    "latest_wake_slot": 18
+  },
+  "preferences": {
+    "preferred_workout_days": [0],
+    "avoid_workout_days": [1, 2, 3, 4, 5, 6],
+    "wants_pre_workout_meal": true,
+    "wants_post_workout_meal": true
+  },
+  "time_limit_s": 10
+}

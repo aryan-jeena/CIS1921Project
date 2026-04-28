@@ -1,0 +1,40 @@
+{
+  "name": "vegetarian_athlete",
+  "goal": "performance",
+  "calorie_target": 2700,
+  "calorie_tolerance": 150,
+  "protein_min_g": 140,
+  "protein_target_g": 170,
+  "carb_target_g": 340,
+  "fat_target_g": 90,
+  "min_protein_per_meal_g": 30,
+  "weekly_budget_cents": 14000,
+  "dietary_exclusions": ["contains_beef", "contains_pork", "contains_shellfish"],
+  "available_windows": [
+    {"day": 0, "start_slot": 14, "end_slot": 22},
+    {"day": 0, "start_slot": 30, "end_slot": 42},
+    {"day": 1, "start_slot": 14, "end_slot": 22},
+    {"day": 1, "start_slot": 30, "end_slot": 42},
+    {"day": 2, "start_slot": 14, "end_slot": 22},
+    {"day": 2, "start_slot": 30, "end_slot": 42},
+    {"day": 3, "start_slot": 14, "end_slot": 22},
+    {"day": 3, "start_slot": 30, "end_slot": 42},
+    {"day": 4, "start_slot": 14, "end_slot": 22},
+    {"day": 4, "start_slot": 30, "end_slot": 42},
+    {"day": 5, "start_slot": 14, "end_slot": 42},
+    {"day": 6, "start_slot": 14, "end_slot": 42}
+  ],
+  "max_meals_per_day": 4,
+  "workout_count_min": 4,
+  "workout_count_max": 5,
+  "candidate_workouts": ["push_day", "pull_day", "legs_day", "cardio_easy", "mobility_flow"],
+  "preferences": {
+    "preferred_workout_days": [0, 1, 3, 4],
+    "avoid_workout_days": [6],
+    "preferred_split": "push_pull_legs",
+    "preferred_meals_per_day": 4,
+    "wants_pre_workout_meal": true,
+    "wants_post_workout_meal": true
+  },
+  "time_limit_s": 30
+}

@@ -1,0 +1,20 @@
+# Core optimization
+ortools>=9.10
+
+# Scientific Python
+numpy>=1.26
+pandas>=2.1
+pydantic>=2.6
+
+# Visualization
+matplotlib>=3.8
+
+# UI (optional but used by app/streamlit_app.py)
+streamlit>=1.32
+
+# Data ingestion (Penn Dining parser)
+requests>=2.31
+beautifulsoup4>=4.12
+
+# Testing
+pytest>=8.0

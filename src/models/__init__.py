@@ -1,0 +1,51 @@
+"""Typed domain objects used across solvers, ingestion, and evaluation."""
+
+from .enums import (
+    ActivityKind,
+    DietaryTag,
+    Goal,
+    Intensity,
+    MealType,
+    PreferredSplit,
+    WorkoutType,
+)
+from .domain import (
+    DailyPlan,
+    FoodItem,
+    HydrationRule,
+    MealPlacement,
+    Plan,
+    RecoveryRule,
+    ScheduleBlock,
+    SleepRule,
+    SolverResult,
+    TimeWindow,
+    UserPreferences,
+    UserProfile,
+    WorkoutPlacement,
+    WorkoutTemplate,
+)
+
+__all__ = [
+    "ActivityKind",
+    "DietaryTag",
+    "Goal",
+    "Intensity",
+    "MealType",
+    "PreferredSplit",
+    "WorkoutType",
+    "DailyPlan",
+    "FoodItem",
+    "HydrationRule",
+    "MealPlacement",
+    "Plan",
+    "RecoveryRule",
+    "ScheduleBlock",
+    "SleepRule",
+    "SolverResult",
+    "TimeWindow",
+    "UserPreferences",
+    "UserProfile",
+    "WorkoutPlacement",
+    "WorkoutTemplate",
+]

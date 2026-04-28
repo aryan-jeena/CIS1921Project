@@ -1,0 +1,39 @@
+{
+  "dpi": 160,
+  "figsize_small": [7.0, 4.0],
+  "figsize_wide": [10.0, 4.5],
+  "figsize_square": [6.5, 6.0],
+  "title_fontsize": 12,
+  "label_fontsize": 10,
+  "palette": [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#17becf"
+  ],
+  "annotate_bars": true,
+  "grid": true,
+  "style": "default",
+  "prefix": "results",
+  "include_scaling": true,
+  "include_pareto": true,
+  "include_heatmap": true,
+  "include_stacked": true,
+  "include_summary_table": true,
+  "solver_order": [
+    "nutrition_lp",
+    "two_stage",
+    "joint_cpsat"
+  ],
+  "instance_order": [
+    "lean_bulk",
+    "aggressive_cut",
+    "vegetarian_athlete",
+    "budget_student",
+    "tight_class_schedule",
+    "infeasible_demo"
+  ]
+}

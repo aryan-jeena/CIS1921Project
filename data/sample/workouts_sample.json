@@ -1,0 +1,102 @@
+[
+  {
+    "id": "full_body_a",
+    "name": "Full-body session A",
+    "workout_type": "full_body",
+    "intensity": "hard",
+    "duration_slots": 3,
+    "min_recovery_slots": 24,
+    "preferred_time_of_day": "afternoon",
+    "description": "Squat + bench + row + accessories, 75 min."
+  },
+  {
+    "id": "full_body_b",
+    "name": "Full-body session B",
+    "workout_type": "full_body",
+    "intensity": "hard",
+    "duration_slots": 3,
+    "min_recovery_slots": 24,
+    "preferred_time_of_day": "afternoon",
+    "description": "Deadlift + OHP + pullup + accessories, 75 min."
+  },
+  {
+    "id": "upper_heavy",
+    "name": "Heavy upper",
+    "workout_type": "upper",
+    "intensity": "very_hard",
+    "duration_slots": 3,
+    "min_recovery_slots": 36,
+    "preferred_time_of_day": "afternoon",
+    "description": "Compound upper-body pressing + pulling."
+  },
+  {
+    "id": "lower_heavy",
+    "name": "Heavy lower",
+    "workout_type": "lower",
+    "intensity": "very_hard",
+    "duration_slots": 3,
+    "min_recovery_slots": 36,
+    "preferred_time_of_day": "afternoon",
+    "description": "Squat + RDL + accessories."
+  },
+  {
+    "id": "push_day",
+    "name": "Push day",
+    "workout_type": "push",
+    "intensity": "hard",
+    "duration_slots": 3,
+    "min_recovery_slots": 24,
+    "preferred_time_of_day": "afternoon",
+    "description": "Bench + OHP + dips + tricep work."
+  },
+  {
+    "id": "pull_day",
+    "name": "Pull day",
+    "workout_type": "pull",
+    "intensity": "hard",
+    "duration_slots": 3,
+    "min_recovery_slots": 24,
+    "preferred_time_of_day": "afternoon",
+    "description": "Deadlift + rows + pullups + curls."
+  },
+  {
+    "id": "legs_day",
+    "name": "Legs day",
+    "workout_type": "legs",
+    "intensity": "very_hard",
+    "duration_slots": 3,
+    "min_recovery_slots": 36,
+    "preferred_time_of_day": "afternoon",
+    "description": "Squat + leg press + RDL + calves."
+  },
+  {
+    "id": "cardio_easy",
+    "name": "Zone-2 cardio 45 min",
+    "workout_type": "cardio",
+    "intensity": "moderate",
+    "duration_slots": 2,
+    "min_recovery_slots": 0,
+    "preferred_time_of_day": "morning",
+    "description": "Easy bike or jog, conversational pace."
+  },
+  {
+    "id": "cardio_hiit",
+    "name": "HIIT intervals",
+    "workout_type": "cardio",
+    "intensity": "very_hard",
+    "duration_slots": 1,
+    "min_recovery_slots": 36,
+    "preferred_time_of_day": "morning",
+    "description": "10x60s hard efforts, 60s easy."
+  },
+  {
+    "id": "mobility_flow",
+    "name": "Mobility + core flow",
+    "workout_type": "mobility",
+    "intensity": "easy",
+    "duration_slots": 1,
+    "min_recovery_slots": 0,
+    "preferred_time_of_day": "evening",
+    "description": "Yoga-style flow, easy core."
+  }
+]

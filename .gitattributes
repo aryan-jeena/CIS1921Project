@@ -1,0 +1,23 @@
+# Normalise line endings across platforms.
+* text=auto eol=lf
+
+# Treat these as plain text so diffs render nicely.
+*.py   text diff=python
+*.md   text
+*.json text
+*.csv  text
+*.yaml text
+*.yml  text
+*.cfg  text
+*.ini  text
+
+# Binary artefacts — never line-end-munge.
+*.png binary
+*.pdf binary
+*.ipynb binary
+
+# Keep data artefacts out of "language" breakdowns on hosting providers
+# (e.g. GitHub's linguist). These directories carry data, not source code.
+data/sample/**  linguist-vendored
+reports/figures/** linguist-generated
+reports/tables/**  linguist-generated

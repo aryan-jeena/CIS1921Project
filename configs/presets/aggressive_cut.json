@@ -1,0 +1,42 @@
+{
+  "name": "aggressive_cut",
+  "goal": "cut",
+  "calorie_target": 1800,
+  "calorie_tolerance": 100,
+  "protein_min_g": 160,
+  "protein_target_g": 180,
+  "carb_target_g": 160,
+  "fat_target_g": 55,
+  "min_protein_per_meal_g": 30,
+  "weekly_budget_cents": 9000,
+  "dietary_exclusions": [],
+  "available_windows": [
+    {"day": 0, "start_slot": 14, "end_slot": 18},
+    {"day": 0, "start_slot": 24, "end_slot": 28},
+    {"day": 0, "start_slot": 34, "end_slot": 42},
+    {"day": 1, "start_slot": 14, "end_slot": 18},
+    {"day": 1, "start_slot": 34, "end_slot": 42},
+    {"day": 2, "start_slot": 14, "end_slot": 18},
+    {"day": 2, "start_slot": 24, "end_slot": 28},
+    {"day": 2, "start_slot": 34, "end_slot": 42},
+    {"day": 3, "start_slot": 14, "end_slot": 18},
+    {"day": 3, "start_slot": 34, "end_slot": 42},
+    {"day": 4, "start_slot": 14, "end_slot": 18},
+    {"day": 4, "start_slot": 34, "end_slot": 42},
+    {"day": 5, "start_slot": 14, "end_slot": 42},
+    {"day": 6, "start_slot": 14, "end_slot": 42}
+  ],
+  "max_meals_per_day": 4,
+  "workout_count_min": 4,
+  "workout_count_max": 5,
+  "candidate_workouts": ["full_body_a", "full_body_b", "cardio_easy", "cardio_hiit", "mobility_flow"],
+  "preferences": {
+    "preferred_workout_days": [0, 2, 4, 5],
+    "avoid_workout_days": [],
+    "preferred_split": "full_body",
+    "preferred_meals_per_day": 4,
+    "wants_pre_workout_meal": true,
+    "wants_post_workout_meal": true
+  },
+  "time_limit_s": 30
+}
