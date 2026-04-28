@@ -1,0 +1,50 @@
+{
+  "name": "dense_training",
+  "goal": "lean_bulk",
+  "calorie_target": 3200,
+  "calorie_tolerance": 150,
+  "protein_min_g": 180,
+  "protein_target_g": 220,
+  "carb_target_g": 380,
+  "fat_target_g": 95,
+  "min_protein_per_meal_g": 35,
+  "weekly_budget_cents": 18000,
+  "dietary_exclusions": [],
+  "available_windows": [
+    {"day": 0, "start_slot": 12, "end_slot": 20},
+    {"day": 0, "start_slot": 28, "end_slot": 42},
+    {"day": 1, "start_slot": 12, "end_slot": 20},
+    {"day": 1, "start_slot": 28, "end_slot": 42},
+    {"day": 2, "start_slot": 12, "end_slot": 20},
+    {"day": 2, "start_slot": 28, "end_slot": 42},
+    {"day": 3, "start_slot": 12, "end_slot": 20},
+    {"day": 3, "start_slot": 28, "end_slot": 42},
+    {"day": 4, "start_slot": 12, "end_slot": 20},
+    {"day": 4, "start_slot": 28, "end_slot": 42},
+    {"day": 5, "start_slot": 14, "end_slot": 42},
+    {"day": 6, "start_slot": 14, "end_slot": 42}
+  ],
+  "max_meals_per_day": 4,
+  "workout_count_min": 7,
+  "workout_count_max": 9,
+  "candidate_workouts": [
+    "full_body_a", "full_body_b", "upper_heavy", "lower_heavy",
+    "push_day", "pull_day", "legs_day", "cardio_easy",
+    "cardio_hiit", "mobility_flow"
+  ],
+  "preferences": {
+    "preferred_workout_days": [0, 1, 2, 3, 4, 5],
+    "avoid_workout_days": [],
+    "preferred_split": "upper_lower",
+    "preferred_meals_per_day": 4,
+    "wants_pre_workout_meal": true,
+    "wants_post_workout_meal": true,
+    "pre_workout_meal_window_slots": 6,
+    "post_workout_meal_window_slots": 4
+  },
+  "recovery": {
+    "min_gap_slots": 24,
+    "max_consecutive_hard_days": 2
+  },
+  "time_limit_s": 30
+}
