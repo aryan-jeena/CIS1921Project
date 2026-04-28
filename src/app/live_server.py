@@ -123,16 +123,25 @@ class StreamingCallback(cp_model.CpSolverSolutionCallback):
                     "day": d, "start": 0, "end": self.wake,
                     "kind": "sleep", "label": "sleep",
                 })
-        # Meals
+        # Meals — stream food servings too so the label changes when the
+        # solver swaps foods around between iterations.
         M = len(self.meal_types)
         for d in range(DAYS_PER_WEEK):
             for m, mt in enumerate(self.meal_types):
                 if self.Value(self.meal_active[d][m]) == 0:
                     continue
                 start = int(self.Value(self.meal_start_vars[(d, m)]))
+                items = []
+                for i, f in enumerate(self.foods):
+                    n = int(self.Value(self.serve[d][m][i]))
+                    if n > 0:
+                        items.append({"name": f.name.split(":")[-1].strip(),
+                                      "n": n})
                 blocks.append({
                     "day": d, "start": start, "end": start + 1,
                     "kind": "meal", "label": mt.value,
+                    "id": f"meal-{d}-{m}",
+                    "items": items,
                 })
         # Workouts
         for wi in self.wk_items:
@@ -146,6 +155,7 @@ class StreamingCallback(cp_model.CpSolverSolutionCallback):
                 "kind": "workout",
                 "label": wt.name,
                 "intensity": wt.intensity.value,
+                "id": f"wk-{wt.id}",
             })
         # Hydration
         for d in range(DAYS_PER_WEEK):
@@ -154,6 +164,7 @@ class StreamingCallback(cp_model.CpSolverSolutionCallback):
                     blocks.append({
                         "day": d, "start": slot, "end": slot + 1,
                         "kind": "hydration", "label": "💧",
+                        "id": f"hyd-{d}-{slot}",
                     })
 
         evt = {

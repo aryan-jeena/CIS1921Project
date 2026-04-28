@@ -144,7 +144,10 @@
   text.tick       { fill: var(--muted); font-size: 9px; }
   text.lbl.workout-label { fill: white; font-size: 9px; font-weight: 700;
                            text-anchor: middle; dominant-baseline: middle; }
-  text.lbl.meal-label    { fill: #4ade80; font-size: 9px; text-anchor: middle; }
+  text.lbl.meal-label    { fill: #4ade80; font-size: 9px; font-weight: 700;
+                           text-anchor: middle; }
+  text.lbl.meal-servings { fill: var(--sub); font-size: 8px; text-anchor: middle;
+                           font-variant-numeric: tabular-nums; }
 
   /* Solve flash on improvement */
   .flash {
@@ -298,54 +301,79 @@ function shortLabel(label, kind) {
   return label;
 }
 
+// Update-in-place: keep stable per-block IDs so SVG attribute changes
+// trigger the CSS transitions on rect.block / text.lbl. Each block is
+// represented by one or two SVG elements stored in a Map keyed by id.
+const blockEls = new Map();   // id -> {rect, label?}
+
+function setAttrs(el, attrs) {
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+}
+
 function renderBlocks(blocks) {
   const g = ensureBlockGroup();
-  // Replace contents (svg transitions still apply via reuse-by-id when we
-  // keep stable IDs — for simplicity we rebuild and rely on CSS fades).
-  g.innerHTML = "";
-  // Order: sleep -> hydration -> meal -> workout
   const order = {sleep: 0, hydration: 1, meal: 2, workout: 3};
   blocks.sort((a, b) => (order[a.kind] ?? 9) - (order[b.kind] ?? 9));
+
+  const seen = new Set();
   for (const b of blocks) {
+    const id = b.id || `${b.kind}-${b.day}-${b.start}`;
+    seen.add(id);
     const x = PAD_L + b.start * SLOT_W;
     const w = Math.max(2, (b.end - b.start) * SLOT_W);
     const yRow = PAD_T + b.day * ROW_H;
+
+    let entry = blockEls.get(id);
+    if (!entry) {
+      entry = {};
+      if (b.kind === "sleep") {
+        entry.rect = NS("rect", {class: "block sleep"}, g);
+      } else if (b.kind === "meal") {
+        entry.rect = NS("rect", {class: "block meal"}, g);
+        entry.label = NS("text", {class: "lbl meal-label"}, g);
+        entry.servings = NS("text", {class: "lbl meal-servings"}, g);
+      } else if (b.kind === "workout") {
+        entry.rect = NS("rect", {class: "block workout"}, g);
+        entry.label = NS("text", {class: "lbl workout-label"}, g);
+      } else if (b.kind === "hydration") {
+        entry.rect = NS("rect", {class: "block hydration"}, g);
+      }
+      blockEls.set(id, entry);
+    }
+
+    // Update existing element attributes (this triggers CSS transitions).
     if (b.kind === "sleep") {
-      NS("rect", {
-        class: "block sleep", x, y: yRow + 1, width: w,
-        height: ROW_H - 2, opacity: 0.6,
-      }, g);
+      setAttrs(entry.rect, {x, y: yRow + 1, width: w, height: ROW_H - 2, opacity: 0.6});
     } else if (b.kind === "meal") {
-      NS("rect", {
-        class: "block meal", x, y: yRow + ROW_H * 0.32, width: w,
-        height: ROW_H * 0.36, opacity: 0.95,
-      }, g);
-      const tx = NS("text", {
-        class: "lbl meal-label",
-        x: x + w / 2,
-        y: yRow + ROW_H * 0.94,
-      }, g);
-      tx.textContent = shortLabel(b.label, "meal");
+      setAttrs(entry.rect, {x, y: yRow + ROW_H * 0.32, width: w, height: ROW_H * 0.36, opacity: 0.95});
+      setAttrs(entry.label, {x: x + w / 2, y: yRow + ROW_H * 0.96});
+      entry.label.textContent = shortLabel(b.label, "meal");
+      // Show food servings inline so non-positional improvements are visible.
+      const items = (b.items || [])
+        .map(it => `${it.name.split(":").pop().trim().slice(0, 14)}×${it.n}`)
+        .slice(0, 3)
+        .join("  ·  ");
+      setAttrs(entry.servings, {x: x + w / 2, y: yRow + ROW_H * 1.16});
+      entry.servings.textContent = items;
     } else if (b.kind === "workout") {
       const isVH = b.intensity === "very_hard";
-      NS("rect", {
-        class: `block workout${isVH ? " veryhard" : ""}`,
-        x, y: yRow + ROW_H * 0.10, width: w,
-        height: ROW_H * 0.80, opacity: 0.96,
-      }, g);
-      const tx = NS("text", {
-        class: "lbl workout-label",
-        x: x + w / 2, y: yRow + ROW_H * 0.5 + 1,
-      }, g);
+      entry.rect.setAttribute("class", `block workout${isVH ? " veryhard" : ""}`);
+      setAttrs(entry.rect, {x, y: yRow + ROW_H * 0.10, width: w, height: ROW_H * 0.80, opacity: 0.96});
+      setAttrs(entry.label, {x: x + w / 2, y: yRow + ROW_H * 0.5 + 1});
       const lbl = shortLabel(b.label, "workout");
-      tx.textContent = lbl.length * 6 < w - 4 ? lbl : lbl.slice(0, Math.max(2, ((w - 8) / 6) | 0));
+      entry.label.textContent = lbl.length * 6 < w - 4 ? lbl : lbl.slice(0, Math.max(2, ((w - 8) / 6) | 0));
     } else if (b.kind === "hydration") {
-      NS("rect", {
-        class: "block hydration",
-        x, y: yRow + 2, width: Math.max(3, w),
-        height: ROW_H * 0.10, opacity: 0.9,
-      }, g);
+      setAttrs(entry.rect, {x, y: yRow + 2, width: Math.max(3, w), height: ROW_H * 0.10, opacity: 0.9});
     }
+  }
+
+  // Remove any block that disappeared between solutions (rare, but possible).
+  for (const [id, entry] of blockEls.entries()) {
+    if (seen.has(id)) continue;
+    if (entry.rect) entry.rect.remove();
+    if (entry.label) entry.label.remove();
+    if (entry.servings) entry.servings.remove();
+    blockEls.delete(id);
   }
 }
 
@@ -394,6 +422,7 @@ function startSolve() {
   if (evtSource) evtSource.close();
   buildBackground();
   blockGroup = null;
+  blockEls.clear();
   ensureBlockGroup();
   tl.innerHTML = "";
   objEl.textContent = "—";
