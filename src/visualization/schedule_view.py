@@ -2,7 +2,11 @@
 
 The schedule figure is a 7-day × 48-slot grid with colored boxes per
 activity kind. It's used by both the CLI (saved to PNG) and the Streamlit
-UI (embedded via st.pyplot).
+UI (embedded via st.pyplot). The renderer is tuned for legibility on a
+projector: sleep is drawn as an ambient background band (it dominates
+the day numerically but adds no information to look at), workouts and
+meals are drawn as foreground blocks with labels positioned to avoid
+collisions with neighbouring activities.
 """
 from __future__ import annotations
 
@@ -21,75 +25,210 @@ from src.models.domain import Plan
 from src.models.enums import ActivityKind
 
 
+# Modern palette tuned for projection (slightly desaturated, high contrast).
 _COLORS: dict[ActivityKind, str] = {
-    ActivityKind.WORKOUT: "#ef4444",
-    ActivityKind.MEAL: "#22c55e",
-    ActivityKind.SLEEP: "#8b5cf6",
-    ActivityKind.HYDRATION: "#0ea5e9",
-    ActivityKind.RECOVERY: "#f59e0b",
-    ActivityKind.IDLE: "#e5e7eb",
+    ActivityKind.WORKOUT:   "#dc2626",   # red-600
+    ActivityKind.MEAL:      "#16a34a",   # green-600
+    ActivityKind.SLEEP:     "#7c3aed",   # violet-600 (drawn translucent)
+    ActivityKind.HYDRATION: "#0284c7",   # sky-600
+    ActivityKind.RECOVERY:  "#d97706",   # amber-600
+    ActivityKind.IDLE:      "#e5e7eb",
 }
+
+
+def _short_label(label: str) -> str:
+    """Trim labels for figure rendering.
+
+    Block labels carry full detail in the textual schedule; on the figure
+    we only need a glance-friendly tag. Drop the meal-type prefix
+    ("breakfast: ", "dinner: ", ...) and any food-list tail ("x2, ..."),
+    and trim workout labels to drop the trailing "(intensity)" suffix
+    since intensity is encoded by the color.
+    """
+    if ":" in label:
+        head, _, tail = label.partition(":")
+        head = head.strip()
+        # Meal labels look like "dinner: Chicken & Rice Bowl x2, ..."
+        # Keep the meal-type only — readable at small width.
+        if head in {"breakfast", "lunch", "dinner", "snack",
+                    "pre_workout", "post_workout"}:
+            return head
+        return tail.strip()[:24]
+    if "(" in label:
+        return label.split("(")[0].strip()
+    return label[:22]
 
 
 def render_schedule_to_figure(plan: Plan, path: Path | None = None):
     """Draw the weekly grid. Returns (fig, saved_path|None)."""
-    fig, ax = plt.subplots(figsize=(12, 5))
+    # Wider canvas: 13" wide gives meal labels room without truncation.
+    fig, ax = plt.subplots(figsize=(13, 6.2))
 
     ax.set_xlim(0, SLOTS_PER_DAY)
     ax.set_ylim(0, DAYS_PER_WEEK)
     ax.invert_yaxis()
 
-    # grid
-    for s in range(0, SLOTS_PER_DAY + 1, 4):   # every 2h
-        ax.axvline(s, color="#e5e7eb", linewidth=0.5, zorder=0)
+    # ---- background grid: every 2 hours, very light ---------------------
+    for s in range(0, SLOTS_PER_DAY + 1, 4):
+        ax.axvline(s, color="#f1f5f9", linewidth=0.6, zorder=0)
     for d in range(DAYS_PER_WEEK + 1):
-        ax.axhline(d, color="#e5e7eb", linewidth=0.5, zorder=0)
+        ax.axhline(d, color="#e2e8f0", linewidth=0.7, zorder=0)
 
-    # blocks
-    for b in plan.schedule_blocks:
+    # Sort blocks so sleep paints first (becomes background), then meals,
+    # then workouts on top (which is the rare event we care about most).
+    order = {
+        ActivityKind.SLEEP: 0,
+        ActivityKind.HYDRATION: 1,
+        ActivityKind.RECOVERY: 2,
+        ActivityKind.MEAL: 3,
+        ActivityKind.WORKOUT: 4,
+    }
+    blocks = sorted(
+        plan.schedule_blocks,
+        key=lambda b: (order.get(b.kind, 0), b.day, b.start_slot),
+    )
+
+    # Stash workouts/meals per day for label-collision handling.
+    fg_by_day: dict[int, list] = {d: [] for d in range(DAYS_PER_WEEK)}
+
+    for b in blocks:
         color = _COLORS.get(b.kind, "#64748b")
+        width = max(0.5, b.end_slot - b.start_slot)
+
+        if b.kind == ActivityKind.SLEEP:
+            # Draw sleep as a translucent ambient band (full row height).
+            rect = mpatches.Rectangle(
+                (b.start_slot, b.day),
+                width, 1.0,
+                facecolor=color, edgecolor="none",
+                alpha=0.14, zorder=1,
+            )
+            ax.add_patch(rect)
+            continue
+
+        if b.kind == ActivityKind.MEAL:
+            # Slim, centred bar for meals (their default duration is 1 slot,
+            # which would otherwise be invisible). Label drawn beneath.
+            rect = mpatches.Rectangle(
+                (b.start_slot, b.day + 0.25),
+                width, 0.50,
+                facecolor=color, edgecolor=color,
+                linewidth=0.6, alpha=0.85, zorder=3,
+            )
+            ax.add_patch(rect)
+            fg_by_day[b.day].append(("meal", b, width))
+            continue
+
+        if b.kind == ActivityKind.WORKOUT:
+            # Full-height bar so workouts read as the day's anchor event.
+            rect = mpatches.Rectangle(
+                (b.start_slot, b.day + 0.08),
+                width, 0.84,
+                facecolor=color, edgecolor="#7f1d1d",
+                linewidth=0.8, alpha=0.92, zorder=4,
+            )
+            ax.add_patch(rect)
+            fg_by_day[b.day].append(("workout", b, width))
+            continue
+
+        # Hydration / recovery: tiny markers, no labels needed at this scale.
         rect = mpatches.Rectangle(
-            (b.start_slot, b.day),
-            b.end_slot - b.start_slot,
-            1.0,
-            facecolor=color,
-            edgecolor="black",
-            linewidth=0.5,
-            alpha=0.75,
+            (b.start_slot, b.day + 0.42),
+            width, 0.16,
+            facecolor=color, edgecolor=color,
+            linewidth=0.4, alpha=0.85, zorder=2,
         )
         ax.add_patch(rect)
-        # Label: only if block wide enough (>= 2 slots)
-        if b.end_slot - b.start_slot >= 2:
-            ax.text(
-                b.start_slot + 0.2,
-                b.day + 0.5,
-                b.label[:28],
-                fontsize=7,
-                va="center",
-            )
 
-    # x-ticks every 2h
+    # ---- labels with collision avoidance --------------------------------
+    # For each day we know which foreground events exist; place workout
+    # labels INSIDE the bar when wide, ABOVE when narrow, and meal labels
+    # BELOW the day row. Collisions between back-to-back events are
+    # resolved by alternating above/below for adjacent narrow blocks.
+    for d in range(DAYS_PER_WEEK):
+        events = sorted(fg_by_day[d], key=lambda e: e[1].start_slot)
+        last_below_end = -10
+        last_above_end = -10
+        for kind, b, width in events:
+            label = _short_label(b.label)
+            cx = (b.start_slot + b.end_slot) / 2
+            if kind == "workout":
+                # Big enough to hold the label cleanly?
+                if width >= 3.5:
+                    ax.text(
+                        cx, b.day + 0.50, label,
+                        fontsize=8, color="white", fontweight="bold",
+                        ha="center", va="center", zorder=6,
+                    )
+                else:
+                    # Label above the row.
+                    y = b.day + 0.02
+                    ax.annotate(
+                        label,
+                        xy=(cx, b.day + 0.05),
+                        xytext=(cx, y - 0.18),
+                        fontsize=7, color="#7f1d1d", fontweight="bold",
+                        ha="center", va="center", zorder=6,
+                        arrowprops=dict(arrowstyle="-", color="#7f1d1d",
+                                        linewidth=0.6, shrinkA=0, shrinkB=0),
+                    )
+            else:  # meal
+                # Below-row label, with a small bump if the previous
+                # below-row label is too close.
+                offset = 0.92
+                if b.start_slot < last_below_end + 4:
+                    offset = 1.08    # push further down to avoid overlap
+                ax.text(
+                    cx, b.day + offset, label,
+                    fontsize=6.5, color="#166534",
+                    ha="center", va="top", zorder=6,
+                )
+                last_below_end = max(last_below_end, b.end_slot)
+
+    # ---- axes ------------------------------------------------------------
     tick_slots = list(range(0, SLOTS_PER_DAY + 1, 4))
     ax.set_xticks(tick_slots)
-    ax.set_xticklabels([slot_to_time(s % SLOTS_PER_DAY) for s in tick_slots],
-                       rotation=0, fontsize=8)
+    ax.set_xticklabels(
+        [slot_to_time(s % SLOTS_PER_DAY) for s in tick_slots],
+        rotation=0, fontsize=8, color="#475569",
+    )
     ax.set_yticks([d + 0.5 for d in range(DAYS_PER_WEEK)])
-    ax.set_yticklabels(DAY_NAMES)
-    ax.set_title(f"Weekly plan — {plan.user_name}")
+    ax.set_yticklabels(DAY_NAMES, fontsize=10, color="#0f172a")
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#cbd5e1")
+        spine.set_linewidth(0.7)
+    ax.tick_params(length=0)
 
-    # legend
+    ax.set_title(
+        f"Weekly plan — {plan.user_name}",
+        fontsize=13, fontweight="bold", color="#0f172a", pad=12,
+    )
+
+    # ---- legend ----------------------------------------------------------
     legend_handles = [
-        mpatches.Patch(color=c, label=k.value)
-        for k, c in _COLORS.items() if k != ActivityKind.IDLE
+        mpatches.Patch(color=_COLORS[ActivityKind.WORKOUT], label="workout"),
+        mpatches.Patch(color=_COLORS[ActivityKind.MEAL], label="meal"),
+        mpatches.Patch(facecolor=_COLORS[ActivityKind.SLEEP], alpha=0.25,
+                       label="sleep"),
+        mpatches.Patch(color=_COLORS[ActivityKind.HYDRATION], label="hydration"),
     ]
-    ax.legend(handles=legend_handles, loc="upper right",
-              bbox_to_anchor=(1.18, 1.0), fontsize=8)
+    leg = ax.legend(
+        handles=legend_handles,
+        loc="upper right",
+        bbox_to_anchor=(1.0, 1.10),
+        ncol=4,
+        frameon=False,
+        fontsize=9,
+    )
+    for txt in leg.get_texts():
+        txt.set_color("#334155")
 
-    plt.tight_layout()
+    plt.subplots_adjust(left=0.07, right=0.98, top=0.88, bottom=0.10)
     saved = None
     if path is not None:
         saved = Path(path)
-        fig.savefig(saved, dpi=150, bbox_inches="tight")
+        fig.savefig(saved, dpi=160, bbox_inches="tight",
+                    facecolor="white")
     return fig, saved
 
 
