@@ -146,8 +146,34 @@
                            text-anchor: middle; dominant-baseline: middle; }
   text.lbl.meal-label    { fill: #4ade80; font-size: 9px; font-weight: 700;
                            text-anchor: middle; }
-  text.lbl.meal-servings { fill: var(--sub); font-size: 8px; text-anchor: middle;
-                           font-variant-numeric: tabular-nums; }
+  rect.block { cursor: pointer; }
+
+  /* Tooltip — shown on hover only, positioned absolutely. */
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(11, 15, 23, 0.96);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: var(--ink);
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    max-width: 280px;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 120ms ease, transform 120ms ease;
+    z-index: 50;
+  }
+  .tooltip.show { opacity: 1; transform: translateY(0); }
+  .tooltip .ttl { color: var(--accent); font-weight: 700;
+                  font-size: 11px; letter-spacing: 0.02em;
+                  text-transform: uppercase; margin-bottom: 4px; }
+  .tooltip .row { display: flex; justify-content: space-between; gap: 14px; }
+  .tooltip .row .name { color: var(--sub); }
+  .tooltip .row .n    { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tooltip .meta { color: var(--muted); font-size: 11px; margin-top: 6px; }
 
   /* Solve flash on improvement */
   .flash {
@@ -217,6 +243,7 @@
       <span><span class="dot hydration"></span>hydration</span>
     </div>
     <svg class="grid" id="grid" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="tooltip" id="tooltip"></div>
   </section>
 </main>
 
@@ -304,10 +331,64 @@ function shortLabel(label, kind) {
 // Update-in-place: keep stable per-block IDs so SVG attribute changes
 // trigger the CSS transitions on rect.block / text.lbl. Each block is
 // represented by one or two SVG elements stored in a Map keyed by id.
-const blockEls = new Map();   // id -> {rect, label?}
+const blockEls = new Map();   // id -> {rect, label?, data}
 
 function setAttrs(el, attrs) {
   for (const k in attrs) el.setAttribute(k, attrs[k]);
+}
+
+// ----- tooltip -----------------------------------------------------------
+const tooltipEl = document.getElementById("tooltip");
+function fmtSlot(s) {
+  const m = s * 30;
+  return `${String((m / 60) | 0).padStart(2,"0")}:${String(m % 60).padStart(2,"0")}`;
+}
+function tooltipHTML(b) {
+  if (b.kind === "workout") {
+    return `<div class="ttl">${b.intensity || "workout"}</div>
+            <div class="row"><span class="name">${b.label}</span></div>
+            <div class="meta">${fmtSlot(b.start)} → ${fmtSlot(b.end)}  ·  ${(b.end-b.start)*30} min</div>`;
+  }
+  if (b.kind === "meal") {
+    const items = (b.items || []).map(it =>
+      `<div class="row"><span class="name">${it.name}</span><span class="n">×${it.n}</span></div>`
+    ).join("");
+    return `<div class="ttl">${b.label}</div>${items || `<div class="row"><span class="name">(no servings)</span></div>`}
+            <div class="meta">${fmtSlot(b.start)}</div>`;
+  }
+  if (b.kind === "hydration") {
+    return `<div class="ttl">hydration reminder</div>
+            <div class="meta">${fmtSlot(b.start)}</div>`;
+  }
+  if (b.kind === "sleep") {
+    const dur = ((b.end - b.start) * 30) / 60;
+    return `<div class="ttl">sleep</div>
+            <div class="meta">${fmtSlot(b.start)} → ${fmtSlot(b.end)}  ·  ${dur.toFixed(1)} h</div>`;
+  }
+  return "";
+}
+function showTooltip(evt, data) {
+  tooltipEl.innerHTML = tooltipHTML(data);
+  // Position the tooltip near the mouse, but clamp inside the panel.
+  const panel = tooltipEl.parentElement.getBoundingClientRect();
+  const mx = evt.clientX - panel.left;
+  const my = evt.clientY - panel.top;
+  let x = mx + 14, y = my + 14;
+  // Render once to measure
+  tooltipEl.style.left = x + "px";
+  tooltipEl.style.top  = y + "px";
+  tooltipEl.classList.add("show");
+  const tt = tooltipEl.getBoundingClientRect();
+  if (x + tt.width  > panel.width)  x = mx - tt.width  - 14;
+  if (y + tt.height > panel.height) y = my - tt.height - 14;
+  tooltipEl.style.left = Math.max(8, x) + "px";
+  tooltipEl.style.top  = Math.max(8, y) + "px";
+}
+function hideTooltip() { tooltipEl.classList.remove("show"); }
+
+function bindHover(rect, getData) {
+  rect.addEventListener("mousemove", (e) => showTooltip(e, getData()));
+  rect.addEventListener("mouseleave", hideTooltip);
 }
 
 function renderBlocks(blocks) {
@@ -325,36 +406,32 @@ function renderBlocks(blocks) {
 
     let entry = blockEls.get(id);
     if (!entry) {
-      entry = {};
+      entry = {data: b};
       if (b.kind === "sleep") {
         entry.rect = NS("rect", {class: "block sleep"}, g);
       } else if (b.kind === "meal") {
         entry.rect = NS("rect", {class: "block meal"}, g);
         entry.label = NS("text", {class: "lbl meal-label"}, g);
-        entry.servings = NS("text", {class: "lbl meal-servings"}, g);
       } else if (b.kind === "workout") {
         entry.rect = NS("rect", {class: "block workout"}, g);
         entry.label = NS("text", {class: "lbl workout-label"}, g);
       } else if (b.kind === "hydration") {
         entry.rect = NS("rect", {class: "block hydration"}, g);
       }
+      // Bind hover. Use a closure that reads the LATEST data via the entry,
+      // so the tooltip always reflects the current solver state.
+      if (entry.rect) bindHover(entry.rect, () => entry.data);
       blockEls.set(id, entry);
     }
+    // Always replace the cached payload so the tooltip stays fresh.
+    entry.data = b;
 
-    // Update existing element attributes (this triggers CSS transitions).
     if (b.kind === "sleep") {
       setAttrs(entry.rect, {x, y: yRow + 1, width: w, height: ROW_H - 2, opacity: 0.6});
     } else if (b.kind === "meal") {
       setAttrs(entry.rect, {x, y: yRow + ROW_H * 0.32, width: w, height: ROW_H * 0.36, opacity: 0.95});
       setAttrs(entry.label, {x: x + w / 2, y: yRow + ROW_H * 0.96});
       entry.label.textContent = shortLabel(b.label, "meal");
-      // Show food servings inline so non-positional improvements are visible.
-      const items = (b.items || [])
-        .map(it => `${it.name.split(":").pop().trim().slice(0, 14)}×${it.n}`)
-        .slice(0, 3)
-        .join("  ·  ");
-      setAttrs(entry.servings, {x: x + w / 2, y: yRow + ROW_H * 1.16});
-      entry.servings.textContent = items;
     } else if (b.kind === "workout") {
       const isVH = b.intensity === "very_hard";
       entry.rect.setAttribute("class", `block workout${isVH ? " veryhard" : ""}`);
@@ -367,12 +444,11 @@ function renderBlocks(blocks) {
     }
   }
 
-  // Remove any block that disappeared between solutions (rare, but possible).
+  // Remove any block that disappeared between solutions.
   for (const [id, entry] of blockEls.entries()) {
     if (seen.has(id)) continue;
     if (entry.rect) entry.rect.remove();
     if (entry.label) entry.label.remove();
-    if (entry.servings) entry.servings.remove();
     blockEls.delete(id);
   }
 }
