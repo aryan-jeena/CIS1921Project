@@ -73,17 +73,38 @@ another without touching the runner.
 
 ## Installation
 
-Python 3.11+ recommended.
+Python **3.11 or 3.12** is recommended. Python 3.13 also works. Python 3.10
+and 3.14 are *not* recommended (3.10 lacks several pydantic-2 typing forms,
+3.14 tightens dataclass mutable-default rules).
 
 ```bash
-cd "CIS 1921 Project"
-python -m venv .venv
+git clone git@github.com:aryan-jeena/CIS1921Project.git
+cd CIS1921Project
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# Belt-and-suspenders: make sure pyarrow is NOT in the venv (see note below).
+pip uninstall -y pyarrow 2>/dev/null || true
 ```
 
-OR-Tools ships prebuilt wheels for macOS/Linux/Windows, so no compilation
-is required.
+OR-Tools ships prebuilt wheels for macOS, Linux, and Windows, so no
+compilation is required.
+
+> **Important — macOS users: do not install pyarrow alongside this project.**
+> PyArrow vendors its own copy of the abseil C++ library, whose symbols
+> shadow the abseil that OR-Tools links against. The result is a silent
+> deadlock inside CP-SAT — the solver appears to "just be slow" but
+> `max_time_in_seconds` is never honoured. We pin `pandas<2.3` in
+> `requirements.txt` because pandas 3.x makes pyarrow a hard dependency.
+> If you ever see CP-SAT hang past its time limit on macOS, check that
+> pyarrow is uninstalled first. Linux installs are unaffected.
+
+### Verify your install
+
+```bash
+python scripts/run_demo.py    # → all four solvers reach OPTIMAL in <2 s
+pytest -q                     # → 37 tests, all green
+```
 
 ## Quick demo
 
