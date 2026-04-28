@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Constraint-Based Training, Nutrition & Health Schedule Optimizer — CIS 1921</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/theme/black.css" id="theme">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/plugin/highlight/monokai.css">
+  <style>
+    .reveal { font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif; }
+    .reveal h1, .reveal h2, .reveal h3 { letter-spacing: -0.02em; font-weight: 700; }
+    .reveal h1 { font-size: 2.0em; }
+    .reveal h2 { font-size: 1.5em; color: #fcb045; }
+    .reveal h3 { font-size: 1.1em; color: #4cc9f0; }
+    .reveal section { text-align: left; }
+    .reveal .center { text-align: center; }
+    .reveal .small { font-size: 0.65em; line-height: 1.4; }
+    .reveal .smaller { font-size: 0.55em; line-height: 1.3; }
+    .reveal table { font-size: 0.65em; border-collapse: collapse; margin: 0 auto; }
+    .reveal table th, .reveal table td { padding: 0.3em 0.7em; border-bottom: 1px solid #444; }
+    .reveal table th { color: #4cc9f0; font-weight: 600; text-align: left; }
+    .reveal .badge { display: inline-block; background: #2d3748; color: #fcb045; padding: 0.15em 0.6em; border-radius: 0.4em; font-size: 0.55em; margin-right: 0.4em; font-weight: 600; }
+    .reveal .ok { color: #4ade80; }
+    .reveal .x { color: #f87171; }
+    .reveal pre code { font-size: 0.6em; line-height: 1.4; padding: 0.6em 1em; }
+    .reveal .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; align-items: start; }
+    .reveal .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.8em; align-items: start; }
+    .reveal .figure-caption { font-size: 0.5em; color: #888; margin-top: 0.4em; text-align: center; }
+    .reveal img.fig { max-height: 480px; width: auto; display: block; margin: 0 auto; border: 1px solid #333; }
+    .reveal .footnote { position: absolute; bottom: 0.5em; right: 1em; font-size: 0.4em; color: #555; }
+    .reveal .accent { color: #fcb045; }
+    .reveal .muted { color: #888; }
+    .reveal blockquote { border-left: 3px solid #fcb045; padding-left: 1em; font-size: 0.75em; color: #ddd; }
+    .reveal .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8em; margin-top: 1em; }
+    .reveal .stat { background: #1a202c; border: 1px solid #2d3748; padding: 0.7em; border-radius: 0.4em; text-align: center; }
+    .reveal .stat-num { font-size: 1.6em; color: #4cc9f0; font-weight: 700; }
+    .reveal .stat-label { font-size: 0.5em; color: #aaa; margin-top: 0.2em; }
+    .reveal kbd { background: #1a202c; border: 1px solid #4a5568; border-radius: 0.3em; padding: 0.1em 0.4em; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- 1. TITLE -->
+<section class="center">
+  <h1>Constraint-Based Training,<br/>Nutrition &amp; Health<br/>Schedule Optimizer</h1>
+  <p class="small accent">CIS 1921 — Final Project</p>
+  <p class="small">Aryan Jeena &nbsp;·&nbsp; Aadithya Srinivasan</p>
+  <p class="smaller muted">Joint LP/MIP + CP-SAT formulations on a 7&nbsp;×&nbsp;48 weekly time grid</p>
+</section>
+
+<!-- 2. THE PROBLEM -->
+<section>
+  <h2>The problem</h2>
+  <p>Training adherence depends on more than macros — <span class="accent">when</span> you eat,
+    <span class="accent">when</span> you lift, and <span class="accent">when</span> you sleep all matter.</p>
+  <p class="small">Real students juggle class schedules, dining-hall windows, budgets, and recovery rules
+    simultaneously. The standard "meal planner + calendar app" split solves each dimension
+    independently and produces plans that are technically compliant but practically useless —
+    e.g. meal prep that finishes 15 minutes before a squat PR.</p>
+  <blockquote>The joint formulation is the whole point.</blockquote>
+</section>
+
+<!-- 3. FORMULATION -->
+<section>
+  <h2>Formulation</h2>
+  <div class="two-col">
+    <div>
+      <h3>Time grid</h3>
+      <p class="small">7 days × 48 half-hour slots = <span class="accent">336 slots/week</span>.<br/>
+        Everything in integers (cents, grams, slots) — CP-SAT requires it.</p>
+      <h3>Decision variables (joint model)</h3>
+      <ul class="small">
+        <li><code>serve[d, m, f]</code> — int servings</li>
+        <li><code>meal_active[d, m]</code> — bool</li>
+        <li><code>meal_start[d, m]</code> + interval</li>
+        <li><code>wk_sched[d, w]</code>, <code>wk_start[d, w]</code></li>
+        <li><code>sleep_start[d]</code>, hydration bools</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Inputs</h3>
+      <ul class="small">
+        <li><code>UserProfile</code> — macros, budget, exclusions, availability, pantry</li>
+        <li><code>FoodItem[]</code> — Penn Dining + USDA + curated</li>
+        <li><code>WorkoutTemplate[]</code> — duration, intensity, recovery</li>
+      </ul>
+      <h3>Output (shared by all 4 solvers)</h3>
+      <p class="small"><code>SolverResult { status, objective, runtime_s, plan }</code></p>
+      <p class="smaller muted">Same input/output contract → comparable experiments.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4. FOUR SOLVERS -->
+<section>
+  <h2>Four directly comparable formulations</h2>
+  <table>
+    <thead><tr>
+      <th>&nbsp;</th>
+      <th>nutrition_only</th>
+      <th>two_stage</th>
+      <th>joint_cpsat</th>
+      <th>joint_warmstart</th>
+    </tr></thead>
+    <tbody>
+      <tr><td>Macros + budget</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+      <tr><td>Workout scheduling</td><td class="x">✗</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+      <tr><td>Sleep + recovery spacing</td><td class="x">✗</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+      <tr><td>Peri-workout meal timing</td><td class="x">✗</td><td>partial</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+      <tr><td>Trade macro slack ↔ schedule</td><td class="x">✗</td><td class="x">✗</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+      <tr><td>Warm-started from two-stage</td><td class="x">✗</td><td class="x">✗</td><td class="x">✗</td><td class="ok">✓</td></tr>
+      <tr><td>Technique</td><td>LP/MIP</td><td>MIP → CP-SAT</td><td><span class="accent">CP-SAT</span></td><td>CP-SAT + AddHint</td></tr>
+    </tbody>
+  </table>
+  <p class="small" style="margin-top:1em">All four implement <code>BaseSolver</code> with identical signatures —
+    apples-to-apples runtime, feasibility, and objective comparison.</p>
+</section>
+
+<!-- 5. HARD VS SOFT -->
+<section>
+  <h2>Hard vs soft, kept explicit</h2>
+  <div class="two-col">
+    <div>
+      <h3>Hard constraints (the <em>goals</em>)</h3>
+      <ul class="small">
+        <li>Daily calorie band ± tolerance</li>
+        <li>Protein floor per day</li>
+        <li>Weekly budget cap</li>
+        <li>Dietary exclusions / pantry</li>
+        <li><code>AddNoOverlap</code> — meals + workouts</li>
+        <li>Recovery spacing between hard workouts</li>
+        <li>Max consecutive hard days</li>
+        <li>Workout count range</li>
+        <li>Availability windows</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Soft objective (9 weighted terms)</h3>
+      <ul class="small">
+        <li>Calorie / macro deviation penalties</li>
+        <li>Cost</li>
+        <li>Per-meal protein shortfall</li>
+        <li>Peri-workout meal-timing miss</li>
+        <li>Hydration shortfall</li>
+        <li>Preferred / avoided workout days</li>
+        <li>Convenience bonus (negative)</li>
+      </ul>
+      <p class="smaller muted">Adherence is a <em>constraint</em>; cheapness, macro fit,
+        and schedule pleasantness are the <em>objective</em>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6. LIVE DEMO -->
+<section>
+  <h2>Live demo</h2>
+  <p class="small">All four solvers solve the balanced scenario to <span class="accent">OPTIMAL</span>
+    in seconds:</p>
+  <pre><code class="language-bash">$ python scripts/run_demo.py
+--- nutrition_only --- status=OPTIMAL  runtime=0.09s  obj=-266
+--- two_stage     --- status=OPTIMAL  runtime=0.21s  obj=  0
+--- joint_cpsat   --- status=OPTIMAL  runtime=1.33s  obj=-266
+--- joint_warmstart - status=OPTIMAL  runtime=1.52s  obj=-266</code></pre>
+  <pre><code class="language-bash">$ python -m src.app.cli solve \
+      --preset lean_bulk --solver joint_cpsat --figure
+# → 7-day plan: 3120 kcal/day, 202g protein, $0 (dining hall)
+# → meals placed in availability windows
+# → 3 hard workouts respecting recovery rules
+# → sleep blocks each night</code></pre>
+  <p class="small accent center">Switch to terminal →</p>
+</section>
+
+<!-- 7. RESULTS — RUNTIME -->
+<section>
+  <h2>Results: runtime scaling</h2>
+  <img class="fig" src="../figures/results_graphics/final_runtime_scaling.png" alt="Runtime scaling">
+  <p class="small">Catalog size 10 → 200 foods. <span class="accent">joint_cpsat</span> stays
+    practical up to ~80 foods; warm-start narrows the gap on big catalogs by seeding the joint
+    model from the cheap two-stage plan via <code>model.AddHint(...)</code>.</p>
+</section>
+
+<!-- 8. RESULTS — FEASIBILITY + OBJECTIVE -->
+<section>
+  <h2>Results: feasibility + objective</h2>
+  <div class="two-col">
+    <div>
+      <img class="fig" style="max-height:340px" src="../figures/results_graphics/final_feasibility_heatmap.png" alt="Feasibility heatmap">
+      <p class="figure-caption">Feasibility per (instance × solver)</p>
+    </div>
+    <div>
+      <img class="fig" style="max-height:340px" src="../figures/results_graphics/final_objective_breakdown.png" alt="Objective breakdown">
+      <p class="figure-caption">Stacked objective by penalty term</p>
+    </div>
+  </div>
+  <p class="small">Where joint pays off: instances where the two-stage commits to food choices
+    the scheduler cannot fit. Where it doesn't: small loose instances where two-stage hits
+    OPTIMAL faster than the joint can presolve.</p>
+</section>
+
+<!-- 9. NOVELTY HITS -->
+<section>
+  <h2>Novelty (Option 2: 5/5)</h2>
+  <div class="three-col">
+    <div>
+      <span class="badge">DATA</span>
+      <p class="small">Penn Dining HTML parser + USDA stub + curated sample CSV.
+        Graceful fallback chain so the project always runs offline.</p>
+    </div>
+    <div>
+      <span class="badge">SOLVERS</span>
+      <p class="small">Four formulations, shared <code>BaseSolver</code> contract,
+        runtime + feasibility + Pareto + objective-breakdown analyses.</p>
+    </div>
+    <div>
+      <span class="badge">GENERATOR</span>
+      <p class="small">Parameterized instance generator. Catalog sizes
+        <code>[10..200]</code>; 6 named scenarios from balanced to "impossible".</p>
+    </div>
+    <div>
+      <span class="badge">CONFIG</span>
+      <p class="small">JSON presets + CLI flags + Streamlit form. Pantry mode toggle
+        models dining-hall access with cost weight zeroed.</p>
+    </div>
+    <div>
+      <span class="badge">TECHNIQUES</span>
+      <p class="small">MIP + CP-SAT decomposition + LNS warm-start hybrid +
+        assumption-literal IIS for actionable infeasibility messages.</p>
+    </div>
+    <div>
+      <span class="badge">RIGOR</span>
+      <p class="small">37 tests, 5 figure types × 3 sweep prefixes, machine-readable
+        long-format CSVs, 456-line written report.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 10. KEY FINDINGS -->
+<section>
+  <h2>Key findings</h2>
+  <ul class="small">
+    <li><span class="accent">Joint &gt; two-stage</span> when constraints are tight — the two-stage
+      decomposition commits to food choices the scheduler then cannot fit. Joint trades macro
+      slack for a feasible schedule directly.</li>
+    <li><span class="accent">Warm-start helps where it matters</span> — on large catalogs the
+      joint solver is faster from a seeded plan; on tiny loose instances the two-stage
+      pre-pass is wasted overhead.</li>
+    <li><span class="accent">Assumption-literal IIS pays off</span> — when the joint model
+      is infeasible, <code>SufficientAssumptionsForInfeasibility()</code> returns the smallest
+      group(s) the user must relax: calorie band / protein floor / budget / workout count /
+      scheduling overlaps.</li>
+    <li><span class="accent">Hydration was free</span> — sliding-window pairwise spacing as
+      booleans on a daytime window with a soft shortfall term, no contribution to the no-overlap
+      pool. Adding it never increased runtime past the time limit on any feasible instance.</li>
+  </ul>
+</section>
+
+<!-- 11. FUTURE WORK -->
+<section>
+  <h2>Future work</h2>
+  <div class="two-col">
+    <div>
+      <h3>Solver scaling</h3>
+      <p class="small">Column generation / Benders decomposition past 200 foods.
+        Today the joint model is well-behaved up to ~100 — beyond that the
+        <code>(food × meal_type × day)</code> combinatorics start to bite.</p>
+      <h3>Online re-optimization</h3>
+      <p class="small">A missed workout triggers a partial re-solve over the
+        remaining days, warm-started from what the user already did.</p>
+    </div>
+    <div>
+      <h3>Real Penn Dining scrape</h3>
+      <p class="small">Cookie-aware Playwright fetcher behind a feature flag.
+        Current sample is hand-curated and semantically identical to what the page yields.</p>
+      <h3>Per-meal protein floor</h3>
+      <p class="small">Currently soft; promoting to a hard constraint in pantry
+        mode would model competitive-athlete users more faithfully.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 12. CLOSE -->
+<section class="center">
+  <h1>Thank you</h1>
+  <p class="small accent">github.com/aryan-jeena/CIS1921Project</p>
+  <p class="smaller muted">Aryan Jeena · Aadithya Srinivasan · CIS 1921 · 2026</p>
+  <p class="smaller">Questions?</p>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/plugin/highlight/highlight.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    transition: 'slide',
+    controls: true,
+    progress: true,
+    slideNumber: 'c/t',
+    plugins: [ RevealHighlight ]
+  });
+</script>
+</body>
+</html>
