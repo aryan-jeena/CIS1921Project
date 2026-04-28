@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Live solver — CIS 1921</title>
+<style>
+  :root {
+    --bg: #0b0f17;
+    --bg2: #131a26;
+    --ink: #f1f5f9;
+    --sub: #94a3b8;
+    --muted: #64748b;
+    --accent: #f59e0b;
+    --workout: #ef4444;
+    --workout-hard: #b91c1c;
+    --meal: #22c55e;
+    --sleep: rgba(167, 139, 250, 0.18);
+    --hydration: #38bdf8;
+    --grid: rgba(255,255,255,0.05);
+    --row: rgba(255,255,255,0.02);
+    --hairline: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", sans-serif;
+    color: var(--ink);
+    background: radial-gradient(1200px 600px at 80% -10%, rgba(245,158,11,.12), transparent 60%),
+                radial-gradient(900px 500px at 0% 110%, rgba(56,189,248,.10), transparent 60%),
+                var(--bg);
+    min-height: 100%;
+  }
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 22px 32px 14px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  header h1 {
+    margin: 0; font-size: 18px; font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  header h1 .accent { color: var(--accent); }
+  header .meta { color: var(--sub); font-size: 12px; }
+  main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    padding: 24px 32px 32px;
+    height: calc(100vh - 64px);
+  }
+  /* ----- left column: controls + stats ----- */
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .panel h2 {
+    margin: 0 0 12px; font-size: 11px; letter-spacing: 0.08em;
+    color: var(--accent); text-transform: uppercase; font-weight: 700;
+  }
+  label { display: block; margin: 12px 0 4px; color: var(--sub); font-size: 11px;
+          letter-spacing: 0.04em; text-transform: uppercase; }
+  select, input[type="number"], button {
+    width: 100%; padding: 9px 12px; font: inherit; font-size: 13px;
+    background: #0f1623; border: 1px solid var(--hairline);
+    color: var(--ink); border-radius: 8px;
+  }
+  button {
+    margin-top: 16px; cursor: pointer;
+    background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+    border-color: #c2710a; color: #1f2937; font-weight: 700;
+    transition: filter 0.2s ease;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+  .stat {
+    background: #0f1623; border: 1px solid var(--hairline);
+    border-radius: 8px; padding: 10px 12px;
+  }
+  .stat .lbl { color: var(--muted); font-size: 10px; letter-spacing: 0.06em;
+               text-transform: uppercase; }
+  .stat .val { font-size: 18px; font-weight: 700; margin-top: 2px;
+               font-variant-numeric: tabular-nums; }
+  .stat.full { grid-column: 1 / -1; }
+
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+    background: rgba(255,255,255,0.06); color: var(--sub);
+  }
+  .badge.search  { background: rgba(245,158,11,0.18); color: #fbbf24; }
+  .badge.feasible{ background: rgba(34,197,94,0.18); color: #4ade80; }
+  .badge.optimal { background: rgba(34,197,94,0.32); color: #86efac; }
+  .badge.timeout { background: rgba(239,68,68,0.18); color: #fca5a5; }
+  .badge.idle    { background: rgba(255,255,255,0.06); color: var(--sub); }
+
+  .timeline {
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: 220px; overflow-y: auto; padding-right: 4px;
+  }
+  .timeline .ev {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 6px 8px; background: #0f1623; border-radius: 6px;
+    font-size: 12px;
+  }
+  .timeline .ev .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .timeline .ev .obj { color: var(--accent); font-weight: 700;
+                       font-variant-numeric: tabular-nums; }
+  .timeline .ev .t { color: var(--sub); font-variant-numeric: tabular-nums; }
+
+  /* ----- right column: weekly grid ----- */
+  .grid-wrap { position: relative; }
+  .grid-wrap .legend {
+    position: absolute; top: 12px; right: 16px; display: flex; gap: 16px;
+    font-size: 11px; color: var(--sub); align-items: center;
+  }
+  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+                 margin-right: 6px; vertical-align: middle; }
+  .legend .dot.workout { background: var(--workout); }
+  .legend .dot.meal    { background: var(--meal); }
+  .legend .dot.sleep   { background: rgba(167,139,250,0.5); }
+  .legend .dot.hydration { background: var(--hydration); }
+
+  svg.grid { width: 100%; height: 100%; display: block; }
+  svg.grid .row-bg:nth-child(odd) { fill: rgba(255,255,255,0.012); }
+  svg.grid .row-bg:nth-child(even) { fill: rgba(255,255,255,0.025); }
+
+  /* CSS transitions on block movement create the "live optimization" feel */
+  rect.block { transition: x 400ms cubic-bezier(.2,.7,.2,1),
+                           y 400ms cubic-bezier(.2,.7,.2,1),
+                           width 400ms cubic-bezier(.2,.7,.2,1); }
+  text.lbl  { transition: x 400ms cubic-bezier(.2,.7,.2,1),
+                          y 400ms cubic-bezier(.2,.7,.2,1); pointer-events: none; }
+  rect.block.workout { fill: var(--workout); stroke: var(--workout-hard); stroke-width: 0.8; }
+  rect.block.workout.veryhard { fill: var(--workout-hard); }
+  rect.block.meal    { fill: var(--meal); rx: 1.5; }
+  rect.block.sleep   { fill: var(--sleep); }
+  rect.block.hydration { fill: var(--hydration); rx: 1; }
+
+  text.day-label  { fill: var(--sub); font-size: 11px; font-weight: 600; }
+  text.tick       { fill: var(--muted); font-size: 9px; }
+  text.lbl.workout-label { fill: white; font-size: 9px; font-weight: 700;
+                           text-anchor: middle; dominant-baseline: middle; }
+  text.lbl.meal-label    { fill: #4ade80; font-size: 9px; text-anchor: middle; }
+
+  /* Solve flash on improvement */
+  .flash {
+    position: absolute; top: 12px; left: 16px; padding: 4px 10px;
+    background: rgba(245, 158, 11, 0.18); color: var(--accent);
+    border-radius: 999px; font-size: 11px; font-weight: 700;
+    opacity: 0; transition: opacity 200ms ease;
+    pointer-events: none;
+  }
+  .flash.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CIS 1921 — <span class="accent">live solver</span></h1>
+  <div class="meta">CP-SAT solution callbacks streamed via SSE</div>
+</header>
+
+<main>
+  <!-- LEFT COLUMN -->
+  <section class="panel" style="overflow: auto">
+    <h2>Setup</h2>
+    <label for="preset">Preset</label>
+    <select id="preset">
+      {% for p in presets %}<option value="{{p}}" {% if p == 'dense_training' %}selected{% endif %}>{{p}}</option>{% endfor %}
+    </select>
+    <label for="tlim">Time limit (seconds)</label>
+    <input type="number" id="tlim" value="12" min="2" max="60">
+    <button id="go">▶  Solve</button>
+
+    <h2 style="margin-top: 22px">Status</h2>
+    <div class="stats">
+      <div class="stat full">
+        <div class="lbl">State</div>
+        <div class="val" style="font-size:14px;margin-top:6px"><span id="state" class="badge idle">idle</span></div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Objective</div>
+        <div class="val" id="obj">—</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Best bound</div>
+        <div class="val" id="bound">—</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Solutions</div>
+        <div class="val" id="nsol">0</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Elapsed</div>
+        <div class="val" id="elapsed">0.0s</div>
+      </div>
+    </div>
+
+    <h2 style="margin-top: 22px">Improvement timeline</h2>
+    <div class="timeline" id="tl"></div>
+  </section>
+
+  <!-- RIGHT COLUMN -->
+  <section class="panel grid-wrap" style="padding: 0; overflow: hidden">
+    <div class="flash" id="flash">improved →</div>
+    <div class="legend">
+      <span><span class="dot workout"></span>workout</span>
+      <span><span class="dot meal"></span>meal</span>
+      <span><span class="dot sleep"></span>sleep</span>
+      <span><span class="dot hydration"></span>hydration</span>
+    </div>
+    <svg class="grid" id="grid" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid meet"></svg>
+  </section>
+</main>
+
+<script>
+const SLOTS_PER_DAY = 48;
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+const VBW = 1200, VBH = 600;
+const PAD_L = 70, PAD_R = 30, PAD_T = 50, PAD_B = 38;
+const GRID_W = VBW - PAD_L - PAD_R;
+const GRID_H = VBH - PAD_T - PAD_B;
+const SLOT_W = GRID_W / SLOTS_PER_DAY;
+const ROW_H = GRID_H / DAYS.length;
+
+const svg = document.getElementById("grid");
+
+function NS(tag, attrs = {}, parent = svg) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(el);
+  return el;
+}
+
+function buildBackground() {
+  svg.innerHTML = "";
+  // Row backgrounds
+  for (let d = 0; d < DAYS.length; d++) {
+    NS("rect", {
+      class: "row-bg",
+      x: PAD_L, y: PAD_T + d * ROW_H, width: GRID_W, height: ROW_H,
+    });
+  }
+  // Vertical 2-hour grid lines
+  for (let s = 0; s <= SLOTS_PER_DAY; s += 4) {
+    NS("line", {
+      x1: PAD_L + s * SLOT_W, y1: PAD_T,
+      x2: PAD_L + s * SLOT_W, y2: PAD_T + GRID_H,
+      stroke: "rgba(255,255,255,0.05)", "stroke-width": 1,
+    });
+  }
+  // Day labels
+  for (let d = 0; d < DAYS.length; d++) {
+    const t = NS("text", {
+      class: "day-label",
+      x: PAD_L - 12,
+      y: PAD_T + d * ROW_H + ROW_H / 2 + 4,
+      "text-anchor": "end",
+    });
+    t.textContent = DAYS[d];
+  }
+  // Time ticks
+  for (let s = 0; s <= SLOTS_PER_DAY; s += 4) {
+    const hh = ((s * 30) / 60) | 0;
+    const t = NS("text", {
+      class: "tick",
+      x: PAD_L + s * SLOT_W,
+      y: VBH - PAD_B + 18,
+      "text-anchor": "middle",
+    });
+    t.textContent = `${String(hh).padStart(2,"0")}:00`;
+  }
+  // Frame
+  NS("rect", {
+    x: PAD_L, y: PAD_T, width: GRID_W, height: GRID_H,
+    fill: "none", stroke: "rgba(255,255,255,0.06)", "stroke-width": 1,
+  });
+}
+
+let blockGroup = null;
+function ensureBlockGroup() {
+  if (!blockGroup) blockGroup = NS("g", {id: "blocks"});
+  return blockGroup;
+}
+
+function shortLabel(label, kind) {
+  if (kind === "workout") {
+    return label.replace(/\s*\(.*?\)\s*$/, "").split(" ").slice(0, 2).join(" ");
+  }
+  if (kind === "meal") {
+    return label.split(":")[0];
+  }
+  return label;
+}
+
+function renderBlocks(blocks) {
+  const g = ensureBlockGroup();
+  // Replace contents (svg transitions still apply via reuse-by-id when we
+  // keep stable IDs — for simplicity we rebuild and rely on CSS fades).
+  g.innerHTML = "";
+  // Order: sleep -> hydration -> meal -> workout
+  const order = {sleep: 0, hydration: 1, meal: 2, workout: 3};
+  blocks.sort((a, b) => (order[a.kind] ?? 9) - (order[b.kind] ?? 9));
+  for (const b of blocks) {
+    const x = PAD_L + b.start * SLOT_W;
+    const w = Math.max(2, (b.end - b.start) * SLOT_W);
+    const yRow = PAD_T + b.day * ROW_H;
+    if (b.kind === "sleep") {
+      NS("rect", {
+        class: "block sleep", x, y: yRow + 1, width: w,
+        height: ROW_H - 2, opacity: 0.6,
+      }, g);
+    } else if (b.kind === "meal") {
+      NS("rect", {
+        class: "block meal", x, y: yRow + ROW_H * 0.32, width: w,
+        height: ROW_H * 0.36, opacity: 0.95,
+      }, g);
+      const tx = NS("text", {
+        class: "lbl meal-label",
+        x: x + w / 2,
+        y: yRow + ROW_H * 0.94,
+      }, g);
+      tx.textContent = shortLabel(b.label, "meal");
+    } else if (b.kind === "workout") {
+      const isVH = b.intensity === "very_hard";
+      NS("rect", {
+        class: `block workout${isVH ? " veryhard" : ""}`,
+        x, y: yRow + ROW_H * 0.10, width: w,
+        height: ROW_H * 0.80, opacity: 0.96,
+      }, g);
+      const tx = NS("text", {
+        class: "lbl workout-label",
+        x: x + w / 2, y: yRow + ROW_H * 0.5 + 1,
+      }, g);
+      const lbl = shortLabel(b.label, "workout");
+      tx.textContent = lbl.length * 6 < w - 4 ? lbl : lbl.slice(0, Math.max(2, ((w - 8) / 6) | 0));
+    } else if (b.kind === "hydration") {
+      NS("rect", {
+        class: "block hydration",
+        x, y: yRow + 2, width: Math.max(3, w),
+        height: ROW_H * 0.10, opacity: 0.9,
+      }, g);
+    }
+  }
+}
+
+// ----- SSE wiring -----
+const tl = document.getElementById("tl");
+const stateEl = document.getElementById("state");
+const objEl = document.getElementById("obj");
+const boundEl = document.getElementById("bound");
+const nsolEl = document.getElementById("nsol");
+const elapsedEl = document.getElementById("elapsed");
+const flashEl = document.getElementById("flash");
+const goBtn = document.getElementById("go");
+
+let evtSource = null;
+
+function setState(name) {
+  const cls = {
+    "search":   "search",
+    "FEASIBLE": "feasible",
+    "OPTIMAL":  "optimal",
+    "TIMEOUT":  "timeout",
+    "INFEASIBLE":"timeout",
+    "ERROR":    "timeout",
+    "idle":     "idle",
+  }[name] || "idle";
+  stateEl.className = "badge " + cls;
+  stateEl.textContent = name.toLowerCase();
+}
+
+function flash() {
+  flashEl.classList.add("show");
+  setTimeout(() => flashEl.classList.remove("show"), 380);
+}
+
+function pushTimeline(n, obj, t) {
+  const ev = document.createElement("div");
+  ev.className = "ev";
+  ev.innerHTML = `<span class="n">#${n}</span>
+                  <span class="obj">${obj.toFixed(0)}</span>
+                  <span class="t">${t.toFixed(2)}s</span>`;
+  tl.prepend(ev);
+  while (tl.children.length > 60) tl.removeChild(tl.lastChild);
+}
+
+function startSolve() {
+  if (evtSource) evtSource.close();
+  buildBackground();
+  blockGroup = null;
+  ensureBlockGroup();
+  tl.innerHTML = "";
+  objEl.textContent = "—";
+  boundEl.textContent = "—";
+  nsolEl.textContent = "0";
+  elapsedEl.textContent = "0.0s";
+  setState("search");
+  goBtn.disabled = true;
+
+  const preset = document.getElementById("preset").value;
+  const tlim = document.getElementById("tlim").value;
+  evtSource = new EventSource(`/solve?preset=${encodeURIComponent(preset)}&time_limit=${tlim}`);
+
+  evtSource.onmessage = (msg) => {
+    const e = JSON.parse(msg.data);
+    if (e.type === "start") {
+      // header info already shown via panel
+    } else if (e.type === "solution") {
+      flash();
+      objEl.textContent = e.objective.toFixed(0);
+      boundEl.textContent = e.best_bound.toFixed(0);
+      nsolEl.textContent = e.n;
+      elapsedEl.textContent = `${e.elapsed_s.toFixed(2)}s`;
+      pushTimeline(e.n, e.objective, e.elapsed_s);
+      renderBlocks(e.blocks);
+    } else if (e.type === "status") {
+      setState(e.status);
+      elapsedEl.textContent = `${e.elapsed_s.toFixed(2)}s`;
+      goBtn.disabled = false;
+    }
+  };
+  evtSource.addEventListener("done", () => {
+    if (evtSource) evtSource.close();
+    evtSource = null;
+    goBtn.disabled = false;
+  });
+  evtSource.onerror = () => {
+    setState("ERROR");
+    if (evtSource) evtSource.close();
+    evtSource = null;
+    goBtn.disabled = false;
+  };
+}
+
+goBtn.addEventListener("click", startSolve);
+buildBackground();
+</script>
+</body>
+</html>
