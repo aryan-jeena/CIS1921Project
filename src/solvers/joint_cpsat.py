@@ -369,6 +369,12 @@ class JointCPSATSolver(BaseSolver):
         # the constraint count stay small enough to never slow down the solver
         # in practice (verified in scaling/v_with_v_without runs).
         hydration_shortfall_vars: list[cp_model.IntVar] = []
+        # Store per-day [(slot_index, bool_var), ...] so the extraction phase
+        # can read out which reminders the solver actually chose and emit
+        # them as ScheduleBlocks on the rendered plan.
+        hydration_slot_vars_by_day: list[list[tuple[int, cp_model.IntVar]]] = [
+            [] for _ in range(D)
+        ]
         if user.hydration.enabled and user.hydration.target_reminders_per_day > 0:
             h_lo = max(0, min(user.hydration.earliest_slot, SLOTS_PER_DAY))
             h_hi = max(h_lo + 1, min(user.hydration.latest_slot, SLOTS_PER_DAY))
@@ -379,6 +385,7 @@ class JointCPSATSolver(BaseSolver):
                 for s in range(h_lo, h_hi):
                     b = model.NewBoolVar(f"hyd_d{d}_s{s}")
                     slot_vars.append(b)
+                    hydration_slot_vars_by_day[d].append((s, b))
                 # Sliding-window constraint: at most 1 active in any window
                 # of length ``spacing``. Cheap and equivalent to pairwise
                 # spacing for monotonically-ordered indices.
@@ -650,6 +657,20 @@ class JointCPSATSolver(BaseSolver):
                     kind=ActivityKind.SLEEP,
                     label=f"Sleep (wake {wake // 2:02d}:{(wake % 2) * 30:02d})",
                 ))
+
+        # Hydration: materialize the boolean reminders the solver chose into
+        # half-slot ScheduleBlocks so they show up on the rendered plan and
+        # the validator/metrics can see them. Modelled as a soft objective
+        # with no contribution to the no-overlap pool, so they coexist with
+        # meals/workouts on the same axis.
+        for d in range(D):
+            for slot, bvar in hydration_slot_vars_by_day[d]:
+                if int(solver.Value(bvar)) == 1:
+                    blocks.append(ScheduleBlock(
+                        day=d, start_slot=slot, end_slot=slot + 1,
+                        kind=ActivityKind.HYDRATION,
+                        label="hydration",
+                    ))
 
         daily_plans = [
             DailyPlan(

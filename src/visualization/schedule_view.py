@@ -157,12 +157,14 @@ def render_schedule_to_figure(plan: Plan, path: Path | None = None):
             fg_by_day[b.day].append(("workout", b, width))
             continue
 
-        # Hydration / recovery: tiny markers, no labels needed at this scale.
+        # Hydration / recovery: small markers along the top edge of the
+        # row, so they read as a recurring "always-on" stripe that never
+        # competes with meal or workout labels.
         rect = mpatches.Rectangle(
-            (b.start_slot, b.day + 0.42),
-            width, 0.16,
+            (b.start_slot, b.day + 0.02),
+            width, 0.075,
             facecolor=color, edgecolor=color,
-            linewidth=0.4, alpha=0.85, zorder=2,
+            linewidth=0, alpha=0.95, zorder=2,
         )
         ax.add_patch(rect)
 
