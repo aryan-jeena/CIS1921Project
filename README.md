@@ -239,6 +239,5 @@ non-overlap, joint solver recovery-rule enforcement, validator + metrics.
 
 ## Project identity
 
-See `CLAUDE.md` for the design brief this project is built against.
 `reports/final_report.md` is the final write-up. `reports/draft_outline.md`
 captures the original section structure used to plan the writeup.

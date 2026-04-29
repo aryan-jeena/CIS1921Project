@@ -15,7 +15,7 @@ The project's centre of gravity is **optimization modelling**:
 Additions should sharpen one of these axes (better modelling, better
 experiments, better evaluation, better figures). Flashy UI work is lower
 priority than modelling, solver comparability, and experiment
-reproducibility. See `CLAUDE.md` for the full guardrails.
+reproducibility.
 
 ## Layout at a glance
 
